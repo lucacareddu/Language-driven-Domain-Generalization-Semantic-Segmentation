@@ -1,0 +1,32 @@
+{
+  "encoder":"wkcn/TinyCLIP-ViT-8M-16-Text-3M-YFCC15M",
+  "gta":{
+    "input_size":[1280,720]
+  },
+  "city":{
+    "input_size":[1024,512]
+  },
+  "rcs":{
+    "enable":1,
+    "temperature":0.01
+  },
+  "preprocessing":{
+    "ignore_index":255,
+    "crop_size":[512,512]
+  },
+  "training":{
+    "batch_size":2,
+    "num_workers":4,
+    "max_iterations":40000,
+    "iters_per_val":4000,
+    "log_dir":"logs",
+    "do_checkpoints":0,
+    "iters_per_save":4000,
+    "checkpoint_dir":"checkpoints"
+  },
+  "optimizer":{
+    "learning_rate":1e-5,
+    "lr_power":0.9,
+    "lr_warmup_iterations":1500
+  }
+}
