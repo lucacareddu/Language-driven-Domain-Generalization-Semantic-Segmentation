@@ -7,9 +7,6 @@ from models.textdecoder import TextDecoder
 from models.neck import MultiLevelNeck
 from transformers import Mask2FormerConfig, Mask2FormerForUniversalSegmentation, Mask2FormerImageProcessor
 
-from transformers import ViTConfig, ViTModel
-
-
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -18,10 +15,7 @@ class DGSSModel(nn.Module):
     def __init__(self, clip_name, ignore_index, text_prompts=None, reins=True, text_decoder=True, nqueries=100, nclasses=19):
         super().__init__()
 
-        # self.encoders = CLIPModel.from_pretrained(clip_name)
-
-        # Initializing a model (with random weights) from the vit-base-patch16-224 style configuration
-        self.encoders = ViTModel.from_pretrained(clip_name)
+        self.encoders = CLIPModel.from_pretrained(clip_name)
         
         if text_prompts is not None:
             tokenizer = CLIPProcessor.from_pretrained(clip_name)
@@ -96,19 +90,18 @@ class DGSSModel(nn.Module):
     def train(self, mode: bool = True):
         super().train(mode)
 
-        # if mode and self.is_reins:
-        #     set_requires_grad(self.encoders, ["reins"])
-        #     set_train(self.encoders, ["reins"])
-        # elif mode and not self.is_reins:
-        #     set_requires_grad(self.encoders, ["vision_model"])
-        #     set_train(self.encoders, ["vision_model"])
+        if mode and self.is_reins:
+            set_requires_grad(self.encoders, ["reins"])
+            set_train(self.encoders, ["reins"])
+        elif mode and not self.is_reins:
+            set_requires_grad(self.encoders, ["vision_model"])
+            set_train(self.encoders, ["vision_model"])
 
 
     def forward(self, pixel_values, bin_masks, classes, return_logits=False):      
-        vision_outputs = self.encoders(pixel_values=pixel_values, output_hidden_states=True, interpolate_pos_encoding=True) 
-        vision_hidden_states = vision_outputs["hidden_states"]
+        vision_outputs = self.encoders.get_image_features(pixel_values=pixel_values, output_hidden_states=True, interpolate_pos_encoding=True) 
+        vision_hidden_states = vision_outputs["outputs"]["hidden_states"]
         vision_hidden_states = (vision_hidden_states[4], vision_hidden_states[7], vision_hidden_states[10])
-        print(vision_hidden_states[-1].shape)
 
         keys = None
         queries = None

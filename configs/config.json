@@ -1,5 +1,5 @@
 {
-  "encoder":"google/vit-base-patch32-224-in21k",
+  "encoder":"openai/clip-vit-base-patch32",
   "gta":{
     "input_size":[1280,720]
   },
@@ -20,13 +20,13 @@
     "max_iterations":40000,
     "iters_per_val":4000,
     "log_dir":"logs",
-    "do_checkpoints":0,
+    "do_checkpoints":1,
     "iters_per_save":4000,
     "checkpoint_dir":"checkpoints"
   },
   "optimizer":{
     "learning_rate":1e-5,
-    "lr_power":0.9,
+    "lr_power":1,
     "lr_warmup_iterations":1500
   }
 }

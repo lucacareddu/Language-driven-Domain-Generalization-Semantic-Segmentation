@@ -68,7 +68,7 @@ train_gta = GTA5Dataset(root=gta_root_path, ignore_index=ignore_index, resize=gt
 val_city = CityscapesDataset(root=city_root_path, split="val", ignore_index=ignore_index, resize=city_inp_size, transforms=city_val_augmentations)
 
 gta_train_loader = DataLoader(train_gta, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, collate_fn=collate_fn)
-city_val_loader = DataLoader(val_city, batch_size=1, num_workers=num_workers, collate_fn=collate_fn)
+city_val_loader = DataLoader(val_city, batch_size=batch_size//2, num_workers=num_workers, collate_fn=collate_fn)
 
 if True:
     print("Class definitions employed.")
@@ -86,15 +86,15 @@ else:
 model = DGSSModel(clip_name=encoder_name, ignore_index=ignore_index,  reins=False)#, text_prompts=text_prompts)
 model.to(device)
 
-# model.print_trainable_params()
-# model.print_frozen_modules()
+model.print_trainable_params()
+model.print_frozen_modules()
 
 params = []
 
 if model.is_reins:
     params.append({'params': model.encoders.vision_model.encoder.reins.parameters()})
 else:
-    params.append({'params': model.encoders.parameters()})
+    params.append({'params': model.encoders.vision_model.parameters()})
 
 if model.is_text_decoder:
     params.append({'params': model.text_decoder.parameters()})
