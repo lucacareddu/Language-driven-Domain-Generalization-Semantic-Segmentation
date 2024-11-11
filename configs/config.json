@@ -1,5 +1,5 @@
 {
-  "encoder":"wkcn/TinyCLIP-ViT-8M-16-Text-3M-YFCC15M",
+  "encoder":"google/vit-base-patch32-224-in21k",
   "gta":{
     "input_size":[1280,720]
   },
@@ -7,7 +7,7 @@
     "input_size":[1024,512]
   },
   "rcs":{
-    "enable":1,
+    "enable":0,
     "temperature":0.01
   },
   "preprocessing":{
@@ -15,7 +15,7 @@
     "crop_size":[512,512]
   },
   "training":{
-    "batch_size":2,
+    "batch_size":4,
     "num_workers":4,
     "max_iterations":40000,
     "iters_per_val":4000,

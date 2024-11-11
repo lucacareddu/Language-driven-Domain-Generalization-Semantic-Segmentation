@@ -89,7 +89,7 @@ class TextDecoder(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-        self.context_decoder = DenseCLIPContextDecoder(transformer_layers=6, visual_dim=256)
+        self.context_decoder = DenseCLIPContextDecoder(transformer_layers=6, visual_dim=512)
         # self.token_decoder = TokenDecoder(layers=3)
 
         # self.layers = nn.ModuleList([nn.MultiheadAttention(embed_dim=256, num_heads=4) for _ in range(3)])

@@ -7,6 +7,9 @@ from models.textdecoder import TextDecoder
 from models.neck import MultiLevelNeck
 from transformers import Mask2FormerConfig, Mask2FormerForUniversalSegmentation, Mask2FormerImageProcessor
 
+from transformers import ViTConfig, ViTModel
+
+
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -15,7 +18,10 @@ class DGSSModel(nn.Module):
     def __init__(self, clip_name, ignore_index, text_prompts=None, reins=True, text_decoder=True, nqueries=100, nclasses=19):
         super().__init__()
 
-        self.encoders = CLIPModel.from_pretrained(clip_name)
+        # self.encoders = CLIPModel.from_pretrained(clip_name)
+
+        # Initializing a model (with random weights) from the vit-base-patch16-224 style configuration
+        self.encoders = ViTModel.from_pretrained(clip_name)
         
         if text_prompts is not None:
             tokenizer = CLIPProcessor.from_pretrained(clip_name)
@@ -23,16 +29,19 @@ class DGSSModel(nn.Module):
             self.text_ids = text_tokenized["input_ids"].cuda()
             self.text_att = text_tokenized["attention_mask"].cuda()
 
-            self.textclip_proj = nn.Linear(256,256)
+            self.visclip_proj = nn.Linear(768,512)
+            self.visclip_proj.apply(self.__init_weights)
+
+            self.textclip_proj = nn.Linear(512,512)
             self.textclip_proj.apply(self.__init_weights)
 
             text_decoder = True
         else:
             text_decoder = False
         
-        self.neck = MultiLevelNeck(in_channels=[256] * 3, out_channels=256)
+        self.neck = MultiLevelNeck(in_channels=[768] * 3, out_channels=768)
 
-        configuration = Mask2FormerConfig(num_labels=nclasses, ignore_value=ignore_index, encoder_layers=1, decoder_layers=3, num_queries=(nclasses if text_decoder else nqueries))
+        configuration = Mask2FormerConfig(num_labels=nclasses, ignore_value=ignore_index, num_queries=(nclasses if text_decoder else nqueries))
         self.vision_decoder = Mask2FormerForUniversalSegmentation(configuration)
         self.vision_decoder_processor = Mask2FormerImageProcessor()
         
@@ -55,10 +64,10 @@ class DGSSModel(nn.Module):
         if text_decoder:
             self.text_decoder = TextDecoder()
 
-            self.text_proj = nn.Linear(256,256)
+            self.text_proj = nn.Linear(512,256)
             self.text_proj.apply(self.__init_weights)
 
-            self.queries_proj = nn.Linear(256,256)
+            self.queries_proj = nn.Linear(512,256)
             self.queries_proj.apply(self.__init_weights)
 
             self.vision_decoder.model.pixel_level_module.decoder.encoder.crss_att = nn.ModuleList([nn.MultiheadAttention(embed_dim=256, num_heads=configuration.num_attention_heads, batch_first=True) for _ in range(configuration.encoder_layers)])
@@ -87,18 +96,19 @@ class DGSSModel(nn.Module):
     def train(self, mode: bool = True):
         super().train(mode)
 
-        if mode and self.is_reins:
-            set_requires_grad(self.encoders, ["reins"])
-            set_train(self.encoders, ["reins"])
-        elif mode and not self.is_reins:
-            set_requires_grad(self.encoders, ["vision_model"])
-            set_train(self.encoders, ["vision_model"])
+        # if mode and self.is_reins:
+        #     set_requires_grad(self.encoders, ["reins"])
+        #     set_train(self.encoders, ["reins"])
+        # elif mode and not self.is_reins:
+        #     set_requires_grad(self.encoders, ["vision_model"])
+        #     set_train(self.encoders, ["vision_model"])
 
 
     def forward(self, pixel_values, bin_masks, classes, return_logits=False):      
-        vision_outputs = self.encoders.get_image_features(pixel_values=pixel_values, output_hidden_states=True, interpolate_pos_encoding=True) 
-        vision_hidden_states = vision_outputs["outputs"]["hidden_states"]
+        vision_outputs = self.encoders(pixel_values=pixel_values, output_hidden_states=True, interpolate_pos_encoding=True) 
+        vision_hidden_states = vision_outputs["hidden_states"]
         vision_hidden_states = (vision_hidden_states[4], vision_hidden_states[7], vision_hidden_states[10])
+        print(vision_hidden_states[-1].shape)
 
         keys = None
         queries = None
@@ -108,7 +118,7 @@ class DGSSModel(nn.Module):
             text_cls_token = text_outputs["outputs"]["pooler_output"]#["pooled_cls"]
             text_emb = self.textclip_proj(text_cls_token)
 
-            context_text = self.text_decoder(text=text_emb.expand(vision_hidden_states[-1].shape[0],-1,-1), visual=vision_hidden_states[-1])
+            context_text = self.text_decoder(text=text_emb.expand(vision_hidden_states[-1].shape[0],-1,-1), visual=self.visclip_proj(vision_hidden_states[-1]))
             keys = self.text_proj(context_text)            
             queries = self.queries_proj(context_text.mean(0))
         elif self.is_reins:
