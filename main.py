@@ -64,8 +64,8 @@ city_val_augmentations = Compose([TwoCropsCityVal(crop_size)])
 train_gta = GTA5Dataset(root="/home/luca/data/gta", ignore_index=ignore_index, resize=gta_inp_size, transforms=gta_augmentations, rcs=rcs_enabled, rcs_temp=rcs_temperature)
 val_city = CityscapesDataset(root="/home/luca/data/cityscapes", split="val", ignore_index=ignore_index, resize=city_inp_size, transforms=city_val_augmentations)
 
-gta_train_loader = DataLoader(train_gta, batch_size=batch_size, shuffle=True, num_workers=num_workers, collate_fn=collate_fn)
-city_val_loader = DataLoader(val_city, batch_size=batch_size//2, num_workers=num_workers//2, collate_fn=collate_fn)
+gta_train_loader = DataLoader(train_gta, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, collate_fn=collate_fn)
+city_val_loader = DataLoader(val_city, batch_size=batch_size//2, num_workers=num_workers, collate_fn=collate_fn)
 
 if True:
     print("Class definitions employed.")
