@@ -1262,7 +1262,7 @@ class CLIPModel(CLIPPreTrainedModel):
         pooled_output = text_outputs[1]
         text_features = self.text_projection(pooled_output)
 
-        return text_outputs
+        return pooled_output
 
     @add_start_docstrings_to_model_forward(CLIP_VISION_INPUTS_DOCSTRING)
     def get_image_features(
