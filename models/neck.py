@@ -77,7 +77,7 @@ class ViTNeck(nn.Module):
         return tuple(outs)
 
 
-class DenseCLIPNeck(nn.Module):
+class tqdmNeck(nn.Module):
     def __init__(self, width):
         super().__init__()
 
@@ -92,7 +92,7 @@ class DenseCLIPNeck(nn.Module):
         self.fpn3 = nn.Identity()
         self.fpn4 = nn.MaxPool2d(kernel_size=2, stride=2)  
             
-        self.apply(self.init_weights)
+        # self.apply(self.init_weights)
 
     def init_weights(self, m):
         if isinstance(m, nn.ConvTranspose2d):

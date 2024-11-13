@@ -814,8 +814,6 @@ class CLIPEncoder(nn.Module):
         self.layers = nn.ModuleList([CLIPEncoderLayer(config) for _ in range(config.num_hidden_layers)])
         self.gradient_checkpointing = False
 
-        self.reins = None
-
     def forward(
         self,
         inputs_embeds,
@@ -883,7 +881,7 @@ class CLIPEncoder(nn.Module):
                     output_attentions=output_attentions,
                 )
 
-            hidden_states = self.reins(layer_outputs[0], idx, batch_first=True, has_cls_token=True) if self.reins is not None else layer_outputs[0]
+            hidden_states = layer_outputs[0]
 
             if output_attentions:
                 all_attentions = all_attentions + (layer_outputs[1],)
@@ -1264,7 +1262,7 @@ class CLIPModel(CLIPPreTrainedModel):
         pooled_output = text_outputs[1]
         text_features = self.text_projection(pooled_output)
 
-        return {"outputs":text_outputs, "pooled_cls":text_features}#return text_features
+        return text_outputs
 
     @add_start_docstrings_to_model_forward(CLIP_VISION_INPUTS_DOCSTRING)
     def get_image_features(
@@ -1315,7 +1313,7 @@ class CLIPModel(CLIPPreTrainedModel):
         pooled_output = vision_outputs[1]  # pooled_output
         image_features = self.visual_projection(pooled_output)
 
-        return {"outputs":vision_outputs, "pooled_cls":image_features}#return image_features
+        return vision_outputs
 
     @add_start_docstrings_to_model_forward(CLIP_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=CLIPOutput, config_class=CLIPConfig)

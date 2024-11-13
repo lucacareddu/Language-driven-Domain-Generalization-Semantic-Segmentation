@@ -3,7 +3,7 @@ from torch import nn
 
 from transformers import ViTModel
 from transformers import CLIPModel, CLIPProcessor
-from models.neck import ViTNeck, DenseCLIPNeck
+from models.neck import ViTNeck, tqdmNeck
 from transformers import Mask2FormerConfig, Mask2FormerForUniversalSegmentation, Mask2FormerImageProcessor
 from models.textdecoder import TextDecoder
 
@@ -14,7 +14,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class DGSSModel(nn.Module):
-    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=True, use_text_keys=False, nqueries=100):
+    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=True, tqdm_neck=False, use_text_keys=False, nqueries=100):
         super().__init__()
 
         self.has_text_decoder = "clip" in encoder_name and text_prompts is not None
@@ -33,8 +33,10 @@ class DGSSModel(nn.Module):
 
         self.out_indices = {"vit":[3, 5, 7, 11], "tiny_clip":[4, 7, 10], "clip":[3, 5, 7, 11]}[encoder_name][-3:]
 
-        self.neck = ViTNeck(in_channels=[encoder_visual_dim] * 3, out_channels=encoder_visual_dim)
-        # self.neck = DenseCLIPNeck(width=encoder_visual_dim)
+        if not tqdm_neck:
+            self.neck = ViTNeck(in_channels=[encoder_visual_dim] * 3, out_channels=encoder_visual_dim)
+        else:
+            self.neck = tqdmNeck(width=encoder_visual_dim)
 
         if encoder_name == "tiny_clip":
             vision_decoder_config = Mask2FormerConfig(num_labels=nclasses, ignore_value=ignore_value, feature_channels=[encoder_visual_dim] * 3, encoder_layers=1, decoder_layers=3, num_queries=(nclasses if self.has_text_decoder else nqueries))
@@ -113,7 +115,7 @@ class DGSSModel(nn.Module):
         loss = decoder_outputs.loss
         
         if return_logits:
-            upsampled_logits = self.vision_decoder_processor.post_process_semantic_segmentation(decoder_outputs, target_sizes=[pixel_values.shape[-2:]]*pixel_values.shape[0])
+            upsampled_logits = self.vision_decoder_processor.post_process_semantic_segmentation(decoder_outputs, target_sizes=[pixel_values.shape[-2:]] * pixel_values.shape[0])
             upsampled_logits = torch.cat(upsampled_logits)
             return loss, upsampled_logits
         

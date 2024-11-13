@@ -1,5 +1,5 @@
 from .model import DGSSModel
-from .reins import *
-from .denseclip import DenseCLIPContextDecoder
+from .neck import ViTNeck, tqdmNeck
 from .textdecoder import TextDecoder
-from .neck import ViTNeck
+from .denseclip import DenseCLIPContextDecoder
+from .reins import *

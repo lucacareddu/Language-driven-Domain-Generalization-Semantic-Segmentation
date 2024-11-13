@@ -1086,8 +1086,8 @@ class Mask2FormerPixelDecoderEncoderOnly(nn.Module):
         )
 
         self.crss_att = None
-        self.context_text = None
-        self.context_text_pos = None
+        self.text_keys = None
+        self.text_keys_pos = None
 
     @staticmethod
     def get_reference_points(spatial_shapes, valid_ratios, device):
@@ -1191,7 +1191,7 @@ class Mask2FormerPixelDecoderEncoderOnly(nn.Module):
                 crss_att_layer = self.crss_att[i]
                 batch_size = hidden_states.shape[0]
                 visual = hidden_states + position_embeddings
-                text = self.context_text + self.context_text_pos.weight.expand(batch_size, -1, -1)
+                text = self.text_keys + self.text_keys_pos.weight.expand(batch_size, -1, -1)
                 hidden_states, _ = crss_att_layer(visual, text, text)
 
             if output_attentions:
@@ -1399,7 +1399,7 @@ class Mask2FormerPixelLevelModule(nn.Module):
         super().__init__()
 
         # self.encoder = load_backbone(config)
-        self.decoder = Mask2FormerPixelDecoder(config, feature_channels=[256,256,256])
+        self.decoder = Mask2FormerPixelDecoder(config, feature_channels=config.feature_channels)
 
     def forward(self, pixel_values: Tensor, output_hidden_states: bool = False) -> Mask2FormerPixelLevelModuleOutput:
         backbone_features = pixel_values#self.encoder(pixel_values).feature_maps
@@ -2047,7 +2047,7 @@ class Mask2FormerTransformerModule(nn.Module):
     def __init__(self, in_features: int, config: Mask2FormerConfig):
         super().__init__()
 
-        self.queries_tensor = None
+        self.text_queries = None
 
         hidden_dim = config.hidden_dim
         self.num_feature_levels = 3
@@ -2092,7 +2092,7 @@ class Mask2FormerTransformerModule(nn.Module):
 
         # [num_queries, batch_size, num_channels]
         query_embeddings = self.queries_embedder.weight.unsqueeze(1).repeat(1, batch_size, 1)
-        query_features = (self.queries_tensor if self.queries_tensor is not None else self.queries_features.weight).unsqueeze(1).repeat(1, batch_size, 1)
+        query_features = (self.text_queries if self.text_queries is not None else self.queries_features.weight).unsqueeze(1).repeat(1, batch_size, 1)
 
         decoder_output = self.decoder(
             inputs_embeds=query_features,
