@@ -83,7 +83,7 @@ else:
 
 #################################################################################################
 
-model = DGSSModel(clip_name=encoder_name, ignore_index=ignore_index,  reins=False)#, text_prompts=text_prompts)
+model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, freeze_text_encoder=True)
 model.to(device)
 
 model.print_trainable_params()
@@ -91,18 +91,17 @@ model.print_frozen_modules()
 
 params = []
 
-if model.is_reins:
-    params.append({'params': model.encoders.vision_model.encoder.reins.parameters()})
+if "clip" in model.encoder_name and model.freeze_text_encoder:
+    params.append({'params': model.encoder.vision_model.parameters()})
 else:
-    params.append({'params': model.encoders.vision_model.parameters()})
-
-if model.is_text_decoder:
-    params.append({'params': model.text_decoder.parameters()})
+    params.append({'params': model.encoder.parameters()})
 
 params.append({'params': model.neck.parameters()})
+params.append({'params': model.vision_decoder.parameters(), 'lr': lr * 10})
 
-params.append({'params': model.vision_decoder.parameters(), 'lr': lr*10})
-
+if model.has_text_decoder:
+    params.append({'params': model.text_decoder.parameters(), 'lr': lr * 10})
+    
 optimizer = torch.optim.AdamW(params, lr=lr)
 
 #################################################################################################
@@ -111,10 +110,9 @@ log_dir = os.path.join(log_dir, timestamp)
 os.makedirs(log_dir)
 tb_writer = tensorboard.SummaryWriter(log_dir, flush_secs=30)
 
-if do_checkpoints:
-    checkpoint_dir = os.path.join(checkpoint_dir, timestamp)
-    os.makedirs(checkpoint_dir)
-    save_json(checkpoint_dir, config)
+checkpoint_dir = os.path.join(checkpoint_dir, timestamp)
+os.makedirs(checkpoint_dir)
+save_json(checkpoint_dir, config)
 
 #################################################################################################
 
@@ -148,11 +146,17 @@ for i_iter in trange(iter_start, max_iterations):
 
     optimizer.step()
 
-    tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
-    tb_writer.add_scalar("Loss", loss, i_iter)
+    try:
+        tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
+        tb_writer.add_scalar("Loss", loss, i_iter)
+    except:
+        pass
 
     if do_checkpoints and (i_iter+1) % iters_per_save == 0:
-        save_checkpoint(checkpoint_dir, i_iter, model, optimizer)
+        try:
+            save_checkpoint(checkpoint_dir, i_iter, model, optimizer)
+        except:
+            pass
 
     if (i_iter+1) % iters_per_val == 0:
         print("Loss: ", loss.item())
@@ -189,8 +193,11 @@ for i_iter in trange(iter_start, max_iterations):
             print("mIoU (Val): ", miou)
             print("mAcc (Val): ", macc)
             
-            tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
-            tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
-            tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
+            try:
+                tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
+                tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
+                tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
+            except:
+                pass
 
             del upsampled_logits, labels

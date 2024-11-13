@@ -1,5 +1,5 @@
 {
-  "encoder":"openai/clip-vit-base-patch32",
+  "encoder":"tiny_clip",
   "gta":{
     "input_size":[1280,720]
   },
@@ -15,12 +15,12 @@
     "crop_size":[512,512]
   },
   "training":{
-    "batch_size":4,
+    "batch_size":2,
     "num_workers":4,
     "max_iterations":40000,
     "iters_per_val":4000,
     "log_dir":"logs",
-    "do_checkpoints":1,
+    "do_checkpoints":0,
     "iters_per_save":4000,
     "checkpoint_dir":"checkpoints"
   },

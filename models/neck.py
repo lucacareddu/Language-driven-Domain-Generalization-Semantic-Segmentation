@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 
 
-class MultiLevelNeck(nn.Module):
+class ViTNeck(nn.Module):
     """
 
     A neck module for scaling ViT plain feature maps.
@@ -75,3 +75,46 @@ class MultiLevelNeck(nn.Module):
             outs.append(output_conv(x_resize))
             
         return tuple(outs)
+
+
+class DenseCLIPNeck(nn.Module):
+    def __init__(self, width):
+        super().__init__()
+
+        self.fpn_dim = width
+        self.fpn1 = nn.Sequential(
+                nn.ConvTranspose2d(self.fpn_dim, self.fpn_dim, kernel_size=2, stride=2),
+                nn.SyncBatchNorm(self.fpn_dim),
+                nn.GELU(),
+                nn.ConvTranspose2d(self.fpn_dim, self.fpn_dim, kernel_size=2, stride=2))
+        self.fpn2 = nn.Sequential(
+            nn.ConvTranspose2d(self.fpn_dim, self.fpn_dim, kernel_size=2, stride=2))
+        self.fpn3 = nn.Identity()
+        self.fpn4 = nn.MaxPool2d(kernel_size=2, stride=2)  
+            
+        self.apply(self.init_weights)
+
+    def init_weights(self, m):
+        if isinstance(m, nn.ConvTranspose2d):
+            nn.init.xavier_uniform_(m.weight, gain=1.0)
+            nn.init.uniform_(m.bias, 0)
+
+    def forward(self, inputs, cls_token=True):
+        assert len(inputs) == 3
+
+        inputs = list(inputs)
+        
+        batch_size = inputs[-1].shape[0]
+        for i, feat in enumerate(inputs):
+            if cls_token:
+                feat = feat[:,1:,:]
+
+            height = width = int(math.sqrt(feat.shape[1]))
+            feat = feat.reshape(batch_size, height, width, -1).permute(0, 3, 1, 2).contiguous()
+            inputs[i] = feat
+
+        ops = [self.fpn1, self.fpn2, self.fpn3]
+        for i in range(len(inputs)):
+            inputs[i] = ops[i](inputs[i])
+            
+        return tuple(inputs)
