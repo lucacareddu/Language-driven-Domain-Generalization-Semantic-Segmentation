@@ -31,6 +31,7 @@ else:
     config = json.load(open("configs/config.json"))
 
 encoder_name = config["encoder"]
+use_text = "clip" in encoder_name and config["use_text"]
 gta_inp_size = tuple(config["gta"]["input_size"])
 city_inp_size = tuple(config["city"]["input_size"])
 rcs_enabled = config["rcs"]["enable"]
@@ -48,6 +49,8 @@ checkpoint_dir = config["training"]["checkpoint_dir"]
 lr = config["optimizer"]["learning_rate"]
 lr_power = config["optimizer"]["lr_power"]
 lr_warmup_iters = config["optimizer"]["lr_warmup_iterations"]
+
+debug = config["debug_mode"]
 
 #################################################################################################
 
@@ -70,16 +73,19 @@ val_city = CityscapesDataset(root=city_root_path, split="val", ignore_index=igno
 gta_train_loader = DataLoader(train_gta, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, collate_fn=collate_fn)
 city_val_loader = DataLoader(val_city, batch_size=batch_size//2, num_workers=num_workers, collate_fn=collate_fn)
 
-if True:
-    print("Class definitions employed.")
-    with open("class_definition/class_definition.json","r") as f:
-        class_definition = json.load(f)
-        class_definition = df_dict_search(dictionary=class_definition, class_names=CITY_VALID_CLASSES)
-        text_prompts = [f"{c}: " + class_definition[c] for c in CITY_VALID_CLASSES]
-        # print([len(x) for x in text_prompts])
-else:
-    print("Class names employed.")
-    text_prompts = [f"a photo of a {c}." for c in CITY_VALID_CLASSES]
+text_prompts = None
+
+if use_text:
+    if True:
+        print("Class definitions employed.")
+        with open("class_definition/class_definition.json","r") as f:
+            class_definition = json.load(f)
+            class_definition = df_dict_search(dictionary=class_definition, class_names=CITY_VALID_CLASSES)
+            text_prompts = [f"{c}: " + class_definition[c] for c in CITY_VALID_CLASSES]
+            # print([len(x) for x in text_prompts])
+    else:
+        print("Class names employed.")
+        text_prompts = [f"a photo of a {c}." for c in CITY_VALID_CLASSES]
 
 #################################################################################################
 
@@ -96,7 +102,7 @@ if "clip" in model.encoder_name and model.freeze_text_encoder:
 else:
     params.append({'params': model.encoder.parameters()})
 
-params.append({'params': model.neck.parameters()})
+params.append({'params': model.neck.parameters()})#, 'lr': lr * 10})
 params.append({'params': model.vision_decoder.parameters(), 'lr': lr * 10})
 
 if model.has_text_decoder:
@@ -106,13 +112,16 @@ optimizer = torch.optim.AdamW(params, lr=lr)
 
 #################################################################################################
 
-log_dir = os.path.join(log_dir, timestamp)
-os.makedirs(log_dir)
-tb_writer = tensorboard.SummaryWriter(log_dir, flush_secs=30)
+if debug:
+    print("\nWARNING! PROCEDING IN DEBUG MODE (no logs are saved).\n")
+else:
+    log_dir = os.path.join(log_dir, timestamp)
+    os.makedirs(log_dir)
+    tb_writer = tensorboard.SummaryWriter(log_dir, flush_secs=30)
 
-checkpoint_dir = os.path.join(checkpoint_dir, timestamp)
-os.makedirs(checkpoint_dir)
-save_json(checkpoint_dir, config)
+    checkpoint_dir = os.path.join(checkpoint_dir, timestamp)
+    os.makedirs(checkpoint_dir)
+    save_json(checkpoint_dir, config)
 
 #################################################################################################
 
@@ -146,17 +155,19 @@ for i_iter in trange(iter_start, max_iterations):
 
     optimizer.step()
 
-    try:
-        tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
-        tb_writer.add_scalar("Loss", loss, i_iter)
-    except:
-        pass
-
-    if do_checkpoints and (i_iter+1) % iters_per_save == 0:
+    if not debug:
         try:
-            save_checkpoint(checkpoint_dir, i_iter, model, optimizer)
+            tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
+            tb_writer.add_scalar("Loss", loss, i_iter)
         except:
             pass
+
+    if do_checkpoints and (i_iter+1) % iters_per_save == 0:
+        if not debug:
+            try:
+                save_checkpoint(checkpoint_dir, i_iter, model, optimizer)
+            except:
+                pass
 
     if (i_iter+1) % iters_per_val == 0:
         print("Loss: ", loss.item())
@@ -193,11 +204,12 @@ for i_iter in trange(iter_start, max_iterations):
             print("mIoU (Val): ", miou)
             print("mAcc (Val): ", macc)
             
-            try:
-                tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
-                tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
-                tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
-            except:
-                pass
+            if not debug:
+                try:
+                    tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
+                    tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
+                    tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
+                except:
+                    pass
 
             del upsampled_logits, labels

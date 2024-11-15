@@ -99,7 +99,7 @@ class TextDecoder(nn.Module):
 
         self.context_decoder = DenseCLIPContextDecoder(transformer_width=256,
                                                         transformer_heads=4,
-                                                        transformer_layers=3,
+                                                        transformer_layers=9,
                                                         visual_dim=text_dim,
                                                         dropout=0.1)
 

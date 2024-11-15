@@ -1,5 +1,7 @@
 {
+  "debug_mode":1,
   "encoder":"tiny_clip",
+  "use_text":1,
   "gta":{
     "input_size":[1280,720]
   },
