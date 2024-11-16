@@ -99,6 +99,10 @@ class DGSSModel(nn.Module):
         if self.has_text_decoder:
             text_outputs = self.encoder.get_text_features(input_ids=self.text_ids, attention_mask=self.text_att)
 
+            text_outputs = text_outputs.repeat(vision_hidden_states[-1].shape[0],1,1)
+            missing_classes = torch.where(torch.stack([torch.bincount(x, minlength=19) for x in classes]) == False)
+            text_outputs[missing_classes] = 0
+
             keys, queries = self.text_decoder(text=text_outputs, visual=vision_hidden_states[-1])
 
             if keys is not None:

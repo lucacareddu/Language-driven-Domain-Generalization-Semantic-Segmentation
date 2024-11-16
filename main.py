@@ -87,7 +87,7 @@ if use_text:
 
 #################################################################################################
 
-model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, freeze_text_encoder=True, use_text_keys=True)
+model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, freeze_text_encoder=False, no_neck=True)
 model.to(device)
 
 model.print_trainable_params()

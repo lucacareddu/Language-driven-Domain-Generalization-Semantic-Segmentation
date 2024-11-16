@@ -89,6 +89,8 @@ class TextDecoder(nn.Module):
     def __init__(self, visual_dim, text_dim, return_keys, return_queries=True, out_dim=256):
         super().__init__()
         assert return_keys or return_queries   
+
+        self.missing_emb = nn.Parameter(torch.randn(19, text_dim)) # missing classes place-holder embeddings
         
         self.text_proj = nn.Parameter(torch.randn(text_dim, text_dim)) 
         
@@ -130,8 +132,10 @@ class TextDecoder(nn.Module):
             nn.init.constant_(m.bias, 0)
 
     def forward(self, text: Tensor, visual: Tensor):
+        missing_emb = self.missing_emb.expand(visual.shape[0],-1,-1)
+        text[text == 0] += missing_emb[text == 0]
         text_emb = text @ self.text_proj
-        text_emb = text_emb.expand(visual.shape[0],-1,-1)
+        # text_emb = text_emb.expand(visual.shape[0],-1,-1)
 
         visual_emb = self.visual_norm(visual)
         visual_emb = visual @ self.visual_proj
