@@ -14,7 +14,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class DGSSModel(nn.Module):
-    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=True, tqdm_neck=False, use_text_keys=False, nqueries=100):
+    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=True, no_neck=False, depthwise_neck=False, tqdm_neck=False, use_text_keys=False, use_text_queries=True, nqueries=100):
         super().__init__()
 
         self.has_text_decoder = "clip" in encoder_name and text_prompts is not None
@@ -34,7 +34,7 @@ class DGSSModel(nn.Module):
         self.out_indices = {"vit":[3, 5, 7, 11], "tiny_clip":[4, 7, 10], "clip":[3, 5, 7, 11]}[encoder_name][-3:]
 
         if not tqdm_neck:
-            self.neck = ViTNeck(in_channels=[encoder_visual_dim] * 3, out_channels=encoder_visual_dim)
+            self.neck = ViTNeck(in_channels=[encoder_visual_dim] * 3, out_channels=encoder_visual_dim, depthwise=depthwise_neck, no_neck=no_neck)
         else:
             self.neck = tqdmNeck(width=encoder_visual_dim)
 
@@ -52,9 +52,7 @@ class DGSSModel(nn.Module):
             self.text_ids = text_tokenized["input_ids"].cuda()
             self.text_att = text_tokenized["attention_mask"].cuda()
 
-            self.text_decoder = TextDecoder(visual_dim=encoder_visual_dim, text_dim=encoder_text_dim, return_keys=use_text_keys)
-            
-            del self.vision_decoder.model.transformer_module.queries_features
+            self.text_decoder = TextDecoder(visual_dim=encoder_visual_dim, text_dim=encoder_text_dim, return_keys=use_text_keys, return_queries=use_text_queries)
 
             if use_text_keys:
                 self.vision_decoder.model.pixel_level_module.decoder.encoder.crss_att = nn.ModuleList([nn.MultiheadAttention(embed_dim=vision_decoder_config.hidden_dim, 
@@ -63,7 +61,10 @@ class DGSSModel(nn.Module):
                 self.vision_decoder.model.pixel_level_module.decoder.encoder.crss_att.apply(self._init_weights)
 
                 self.vision_decoder.model.pixel_level_module.decoder.encoder.text_keys_pos = nn.Embedding(nclasses, vision_decoder_config.hidden_dim)
-                self.vision_decoder.model.pixel_level_module.decoder.encoder.text_keys_pos.apply(self._init_weights)                
+                self.vision_decoder.model.pixel_level_module.decoder.encoder.text_keys_pos.apply(self._init_weights)       
+
+            if use_text_queries:
+                del self.vision_decoder.model.transformer_module.queries_features         
 
 
     def _init_weights(self, m):
@@ -97,6 +98,10 @@ class DGSSModel(nn.Module):
 
         if self.has_text_decoder:
             text_outputs = self.encoder.get_text_features(input_ids=self.text_ids, attention_mask=self.text_att)
+
+            text_outputs = text_outputs.repeat(vision_hidden_states[-1].shape[0],1,1)
+            missing_classes = torch.where(torch.stack([torch.bincount(x, minlength=19) for x in classes]) == False)
+            text_outputs[missing_classes] = 0
 
             keys, queries = self.text_decoder(text=text_outputs, visual=vision_hidden_states[-1])
 

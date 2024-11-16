@@ -89,7 +89,7 @@ if use_text:
 
 #################################################################################################
 
-model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, freeze_text_encoder=True)
+model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, freeze_text_encoder=False)
 model.to(device)
 
 model.print_trainable_params()
@@ -106,7 +106,7 @@ params.append({'params': model.neck.parameters()})#, 'lr': lr * 10})
 params.append({'params': model.vision_decoder.parameters(), 'lr': lr * 10})
 
 if model.has_text_decoder:
-    params.append({'params': model.text_decoder.parameters(), 'lr': lr * 10})
+    params.append({'params': model.text_decoder.parameters()})#, 'lr': lr * 10})
     
 optimizer = torch.optim.AdamW(params, lr=lr)
 

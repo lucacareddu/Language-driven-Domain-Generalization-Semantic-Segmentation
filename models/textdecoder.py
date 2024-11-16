@@ -86,8 +86,11 @@ class TokenDecoder(nn.Module):
 
 
 class TextDecoder(nn.Module):
-    def __init__(self, visual_dim, text_dim, return_keys, out_dim=256):
-        super().__init__()   
+    def __init__(self, visual_dim, text_dim, return_keys, return_queries=True, out_dim=256):
+        super().__init__()
+        assert return_keys or return_queries   
+
+        self.missing_emb = nn.Parameter(torch.randn(19, text_dim)) # missing classes place-holder embeddings
         
         self.text_proj = nn.Parameter(torch.randn(text_dim, text_dim)) 
         
@@ -110,9 +113,12 @@ class TextDecoder(nn.Module):
             self.keys_proj.apply(self._init_weights)
         
         self.return_keys = return_keys
-
-        self.queries_proj = nn.Linear(text_dim, out_dim)
-        self.queries_proj.apply(self._init_weights)
+        
+        if return_queries:
+            self.queries_proj = nn.Linear(text_dim, out_dim)
+            self.queries_proj.apply(self._init_weights)
+        
+        self.return_queries = return_queries
     
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -126,8 +132,10 @@ class TextDecoder(nn.Module):
             nn.init.constant_(m.bias, 0)
 
     def forward(self, text: Tensor, visual: Tensor):
+        missing_emb = self.missing_emb.expand(visual.shape[0],-1,-1)
+        text[text == 0] += missing_emb[text == 0]
         text_emb = text @ self.text_proj
-        text_emb = text_emb.expand(visual.shape[0],-1,-1)
+        # text_emb = text_emb.expand(visual.shape[0],-1,-1)
 
         visual_emb = self.visual_norm(visual)
         visual_emb = visual @ self.visual_proj
@@ -135,7 +143,7 @@ class TextDecoder(nn.Module):
         contextualized_text = self.context_decoder(text=text_emb, visual=visual_emb)
         
         keys = self.keys_proj(contextualized_text) if self.return_keys else None          
-        queries = self.queries_proj(contextualized_text.mean(0))
+        queries = self.queries_proj(contextualized_text.mean(0)) if self.return_queries else None  
 
         return keys, queries
     

@@ -10,7 +10,7 @@ class ViTNeck(nn.Module):
 
     """
 
-    def __init__(self, in_channels, out_channels, scales=[4, 2, 1]):
+    def __init__(self, in_channels, out_channels, scales=[4, 2, 1], depthwise=False, no_neck=False):
         super().__init__()
 
         assert isinstance(in_channels, list)
@@ -19,6 +19,10 @@ class ViTNeck(nn.Module):
         self.out_channels = out_channels
         self.scales = scales
         self.num_outs = len(scales)
+
+        self.no_neck = no_neck
+        if no_neck:
+            return
 
         self.lateral_convs = nn.ModuleList()
         self.output_convs = nn.ModuleList()
@@ -38,7 +42,7 @@ class ViTNeck(nn.Module):
                     kernel_size=3,
                     padding=1,
                     stride=1,
-                    # groups=out_channels
+                    groups=1 if not depthwise else out_channels
                     ))
             
         self.apply(self.init_weights)
@@ -61,6 +65,9 @@ class ViTNeck(nn.Module):
             height = width = int(math.sqrt(feat.shape[1]))
             feat = feat.reshape(batch_size, height, width, -1).permute(0, 3, 1, 2).contiguous()
             inputs[i] = feat
+        
+        if self.no_neck:
+            return tuple(inputs)
 
         inputs = [
             lateral_conv(inputs[i])
