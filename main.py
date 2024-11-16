@@ -31,6 +31,7 @@ else:
     config = json.load(open("configs/config.json"))
 
 encoder_name = config["encoder"]
+use_text = "clip" in encoder_name and config["use_text"]
 gta_inp_size = tuple(config["gta"]["input_size"])
 city_inp_size = tuple(config["city"]["input_size"])
 rcs_enabled = config["rcs"]["enable"]
@@ -61,26 +62,32 @@ if True:
 gta_augmentations = Compose([CentroidCCrop(crop_size)])
 city_val_augmentations = Compose([TwoCropsCityVal(crop_size)])
 
-train_gta = GTA5Dataset(root="/home/luca/data/gta", ignore_index=ignore_index, resize=gta_inp_size, transforms=gta_augmentations, rcs=rcs_enabled, rcs_temp=rcs_temperature)
-val_city = CityscapesDataset(root="/home/luca/data/cityscapes", split="val", ignore_index=ignore_index, resize=city_inp_size, transforms=city_val_augmentations)
+gta_root_path = "/home/luca/data/gta" #"/home/thesis/datasets/GTAV" #
+city_root_path = "/home/luca/data/cityscapes" #"/home/thesis/datasets/Cityscapes" #
+
+train_gta = GTA5Dataset(root=gta_root_path, ignore_index=ignore_index, resize=gta_inp_size, transforms=gta_augmentations, rcs=rcs_enabled, rcs_temp=rcs_temperature)
+val_city = CityscapesDataset(root=city_root_path, split="val", ignore_index=ignore_index, resize=city_inp_size, transforms=city_val_augmentations)
 
 gta_train_loader = DataLoader(train_gta, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, collate_fn=collate_fn)
 city_val_loader = DataLoader(val_city, batch_size=batch_size//2, num_workers=num_workers, collate_fn=collate_fn)
 
-if True:
-    print("Class definitions employed.")
-    with open("class_definition/class_definition.json","r") as f:
-        class_definition = json.load(f)
-        class_definition = df_dict_search(dictionary=class_definition, class_names=CITY_VALID_CLASSES)
-        text_prompts = [f"{c}: " + class_definition[c] for c in CITY_VALID_CLASSES]
-        # print([len(x) for x in text_prompts])
-else:
-    print("Class names employed.")
-    text_prompts = [f"a photo of a {c}." for c in CITY_VALID_CLASSES]
+text_prompts = None
+
+if use_text:
+    if True:
+        print("Class definitions employed.")
+        with open("class_definition/class_definition.json","r") as f:
+            class_definition = json.load(f)
+            class_definition = df_dict_search(dictionary=class_definition, class_names=CITY_VALID_CLASSES)
+            text_prompts = [f"{c}: " + class_definition[c] for c in CITY_VALID_CLASSES]
+            # print([len(x) for x in text_prompts])
+    else:
+        print("Class names employed.")
+        text_prompts = [f"a photo of a {c}." for c in CITY_VALID_CLASSES]
 
 #################################################################################################
 
-model = DGSSModel(clip_name=encoder_name, ignore_index=ignore_index,  reins=False)#text_prompts=text_prompts,)
+model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, freeze_text_encoder=True, use_text_keys=True)
 model.to(device)
 
 model.print_trainable_params()
@@ -88,18 +95,17 @@ model.print_frozen_modules()
 
 params = []
 
-if model.is_reins:
-    params.append({'params': model.encoders.vision_model.encoder.reins.parameters()})
+if "clip" in model.encoder_name and model.freeze_text_encoder:
+    params.append({'params': model.encoder.vision_model.parameters()})
 else:
-    params.append({'params': model.encoders.vision_model.parameters()})
-
-if model.is_text_decoder:
-    params.append({'params': model.text_decoder.parameters()})
+    params.append({'params': model.encoder.parameters()})
 
 params.append({'params': model.neck.parameters()})
+params.append({'params': model.vision_decoder.parameters(), 'lr': lr * 10})
 
-params.append({'params': model.vision_decoder.parameters(), 'lr': lr*10})
-
+if model.has_text_decoder:
+    params.append({'params': model.text_decoder.parameters()})#, 'lr': lr * 10})
+    
 optimizer = torch.optim.AdamW(params, lr=lr)
 
 #################################################################################################
@@ -108,10 +114,9 @@ log_dir = os.path.join(log_dir, timestamp)
 os.makedirs(log_dir)
 tb_writer = tensorboard.SummaryWriter(log_dir, flush_secs=30)
 
-if do_checkpoints:
-    checkpoint_dir = os.path.join(checkpoint_dir, timestamp)
-    os.makedirs(checkpoint_dir)
-    save_json(checkpoint_dir, config)
+checkpoint_dir = os.path.join(checkpoint_dir, timestamp)
+os.makedirs(checkpoint_dir)
+save_json(checkpoint_dir, config)
 
 #################################################################################################
 
@@ -145,11 +150,17 @@ for i_iter in trange(iter_start, max_iterations):
 
     optimizer.step()
 
-    tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
-    tb_writer.add_scalar("Loss", loss, i_iter)
+    try:
+        tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
+        tb_writer.add_scalar("Loss", loss, i_iter)
+    except:
+        pass
 
     if do_checkpoints and (i_iter+1) % iters_per_save == 0:
-        save_checkpoint(checkpoint_dir, i_iter, model, optimizer)
+        try:
+            save_checkpoint(checkpoint_dir, i_iter, model, optimizer)
+        except:
+            pass
 
     if (i_iter+1) % iters_per_val == 0:
         print("Loss: ", loss.item())
@@ -186,8 +197,11 @@ for i_iter in trange(iter_start, max_iterations):
             print("mIoU (Val): ", miou)
             print("mAcc (Val): ", macc)
             
-            tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
-            tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
-            tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
+            try:
+                tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
+                tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
+                tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
+            except:
+                pass
 
             del upsampled_logits, labels

@@ -1,5 +1,6 @@
 {
-  "encoder":"wkcn/TinyCLIP-ViT-8M-16-Text-3M-YFCC15M",
+  "encoder":"tiny_clip",
+  "use_text":1,
   "gta":{
     "input_size":[1280,720]
   },
@@ -7,7 +8,7 @@
     "input_size":[1024,512]
   },
   "rcs":{
-    "enable":1,
+    "enable":0,
     "temperature":0.01
   },
   "preprocessing":{
@@ -26,7 +27,7 @@
   },
   "optimizer":{
     "learning_rate":1e-5,
-    "lr_power":0.9,
+    "lr_power":1,
     "lr_warmup_iterations":1500
   }
 }
