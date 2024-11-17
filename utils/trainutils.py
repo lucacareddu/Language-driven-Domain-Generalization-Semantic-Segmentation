@@ -25,8 +25,12 @@ def collate_fn(batch):
     output = {
         "image": op([x["img"] for x in batch]),
         "label": op([x["lbl"] for x in batch]),
-        "fname": [x["fname"] for x in batch]
     }
+
+    if isinstance(batch[0]["fname"], list):
+        output.update({"fname": [y for x in batch for y in x["fname"]]})
+    else:
+        output.update({"fname": [x["fname"] for x in batch]})
 
     if "classes" in batch[0].keys():
         if isinstance(batch[0]["classes"], list):

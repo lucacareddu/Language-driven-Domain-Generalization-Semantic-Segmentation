@@ -86,7 +86,7 @@ class CityscapesDataset(Dataset):
                 "lbl": lbl,
                 "classes" : classes, 
                 "bin_masks": binary_masks,
-                "fname": name
+                "fname": [name] * 2
                 }
 
         return output

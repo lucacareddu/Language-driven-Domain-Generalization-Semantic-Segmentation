@@ -138,6 +138,7 @@ for i_iter in trange(iter_start, max_iterations):
     images = batch["image"].to(device)
     classes = [x.to(device) for x in batch["classes"]]
     binmasks = [x.to(device) for x in batch["bin_masks"]]
+    fnames = batch["fname"]
 
     if False:
         images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
@@ -147,7 +148,7 @@ for i_iter in trange(iter_start, max_iterations):
     adjust_learning_rate(lr=lr, lr_power=lr_power, i_iter=i_iter, warmup_iters=lr_warmup_iters, max_iterations=max_iterations, optimizer=optimizer)
     optimizer.zero_grad()
 
-    loss = model(pixel_values=images, bin_masks=binmasks, classes=classes)
+    loss = model(pixel_values=images, bin_masks=binmasks, classes=classes, fnames=fnames)
 
     loss.backward()
 
@@ -182,12 +183,13 @@ for i_iter in trange(iter_start, max_iterations):
                 images = batch["image"].to(device)
                 labels = batch["label"].to(device)
                 classes = [x.to(device) for x in batch["classes"]]
-                binmasks = [x.to(device) for x in batch["bin_masks"]]                
+                binmasks = [x.to(device) for x in batch["bin_masks"]]  
+                fnames = batch["fname"]              
 
                 if False:
                     images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
 
-                loss, upsampled_logits = model(pixel_values=images, bin_masks=binmasks, classes=classes, return_logits=True)
+                loss, upsampled_logits = model(pixel_values=images, bin_masks=binmasks, classes=classes, fnames=fnames, return_logits=True)
 
                 upsampled_logits = upsampled_logits.detach()
 

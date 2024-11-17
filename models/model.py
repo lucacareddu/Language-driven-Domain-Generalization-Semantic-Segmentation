@@ -12,6 +12,8 @@ from models.reins import set_train, set_requires_grad
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+import json
+
 
 class DGSSModel(nn.Module):
     def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=True, no_neck=False, depthwise_neck=False, tqdm_neck=False, use_text_keys=False, use_text_queries=True, nqueries=100):
@@ -47,10 +49,16 @@ class DGSSModel(nn.Module):
         self.vision_decoder_processor = Mask2FormerImageProcessor() 
 
         if self.has_text_decoder:
-            tokenizer = CLIPProcessor.from_pretrained(encoder_config)
-            text_tokenized = tokenizer(text=text_prompts, return_tensors="pt", padding=True)
-            self.text_ids = text_tokenized["input_ids"].cuda()
-            self.text_att = text_tokenized["attention_mask"].cuda()
+            with open("captions_15-11_22-08-33.json", 'r') as f:
+                self.gta_captions = json.load(f)
+            
+            with open("captions_city_val_16-11_22-02-42.json", 'r') as f:
+                self.city_val_captions = json.load(f)
+                
+            self.tokenizer = CLIPProcessor.from_pretrained(encoder_config)
+            # text_tokenized = tokenizer(text=text_prompts, return_tensors="pt", padding=True)
+            # self.text_ids = text_tokenized["input_ids"].cuda()
+            # self.text_att = text_tokenized["attention_mask"].cuda()
 
             self.text_decoder = TextDecoder(visual_dim=encoder_visual_dim, text_dim=encoder_text_dim, return_keys=use_text_keys, return_queries=use_text_queries)
 
@@ -87,7 +95,7 @@ class DGSSModel(nn.Module):
             set_train(self.encoder, ["vision_model"])
 
 
-    def forward(self, pixel_values, bin_masks, classes, return_logits=False):
+    def forward(self, pixel_values, bin_masks, classes, fnames, return_logits=False):
         if self.encoder_name == "vit":      
             vision_outputs = self.encoder(pixel_values=pixel_values, output_hidden_states=True, interpolate_pos_encoding=True)
         else:
@@ -97,9 +105,20 @@ class DGSSModel(nn.Module):
         vision_hidden_states = [h for i,h in enumerate(vision_hidden_states) if i in self.out_indices]
 
         if self.has_text_decoder:
-            text_outputs = self.encoder.get_text_features(input_ids=self.text_ids, attention_mask=self.text_att)
+            captions = self.gta_captions if self.training else self.city_val_captions
 
-            text_outputs = text_outputs.repeat(vision_hidden_states[-1].shape[0],1,1)
+            text_prompts = []
+            for f,c in zip(fnames, classes):
+                text_prompts.extend([captions[f][str(i)] if i in c else "" for i in range(19)]) # take only labels present in the prepr. crop
+    
+            text_tokenized = self.tokenizer(text=text_prompts, return_tensors="pt", padding=True)
+            text_ids = text_tokenized["input_ids"].to("cuda")
+            text_att = text_tokenized["attention_mask"].to("cuda")
+
+            text_outputs = self.encoder.get_text_features(input_ids=text_ids, attention_mask=text_att)
+
+            # text_outputs = text_outputs.repeat(vision_hidden_states[-1].shape[0],1,1)
+            text_outputs = torch.stack(torch.split(text_outputs, 19))
             missing_classes = torch.where(torch.stack([torch.bincount(x, minlength=19) for x in classes]) == False)
             text_outputs[missing_classes] = 0
 
@@ -120,6 +139,7 @@ class DGSSModel(nn.Module):
         loss = decoder_outputs.loss
         
         if return_logits:
+            print(decoder_outputs[0])
             upsampled_logits = self.vision_decoder_processor.post_process_semantic_segmentation(decoder_outputs, target_sizes=[pixel_values.shape[-2:]] * pixel_values.shape[0])
             upsampled_logits = torch.cat(upsampled_logits)
             return loss, upsampled_logits
