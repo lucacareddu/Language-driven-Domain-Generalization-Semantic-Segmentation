@@ -1,5 +1,5 @@
 {
-  "debug_mode":1,
+  "debug_mode":0,
   "encoder":"tiny_clip",
   "use_text":1,
   "gta":{

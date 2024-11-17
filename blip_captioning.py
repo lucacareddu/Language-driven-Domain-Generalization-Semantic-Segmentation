@@ -68,10 +68,10 @@ gta_root_path = "/home/thesis/datasets/GTAV" #"/home/luca/data/gta"
 city_root_path = "/home/thesis/datasets/Cityscapes" #"/home/luca/data/cityscapes"
 
 train_gta = GTA5Dataset(root=gta_root_path, ignore_index=ignore_index, resize=gta_inp_size, transforms=None, rcs=rcs_enabled, rcs_temp=rcs_temperature, stats=True)
-val_city = CityscapesDataset(root=city_root_path, split="val", ignore_index=ignore_index, resize=None, transforms=city_val_augmentations)
+val_city = CityscapesDataset(root=city_root_path, split="val", ignore_index=ignore_index, resize=None, transforms=None, stats=True)
 
 gta_train_loader = DataLoader(train_gta, batch_size=1, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, collate_fn=collate_fn)
-city_val_loader = DataLoader(val_city, batch_size=batch_size//2, num_workers=num_workers, collate_fn=collate_fn)
+city_val_loader = DataLoader(val_city, batch_size=1, num_workers=num_workers, collate_fn=collate_fn)
 
 
 from transformers import BlipProcessor, BlipForConditionalGeneration
@@ -86,7 +86,7 @@ iter_resume = 0
 
 model.eval()
 with torch.no_grad():
-    loop = tqdm(gta_train_loader)
+    loop = tqdm(city_val_loader)
     
     for i, batch in enumerate(loop):
 
@@ -119,8 +119,8 @@ with torch.no_grad():
             results[fnames[0]][c.item()] = batch_text[0]
 
         if i%100 == 0:
-            with open(f'captions_{timestamp}.json', 'w') as of:
+            with open(f'captions_city_val_{timestamp}.json', 'w') as of:
                 json.dump(results, of, indent=2)
 
-with open(f'captions_{timestamp}.json', 'w') as of:
+with open(f'captions_city_val_{timestamp}.json', 'w') as of:
     json.dump(results, of, indent=2)

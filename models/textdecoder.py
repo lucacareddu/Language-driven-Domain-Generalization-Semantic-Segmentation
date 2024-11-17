@@ -106,7 +106,7 @@ class TextDecoder(nn.Module):
                                                         visual_dim=text_dim,
                                                         dropout=0.1)
 
-        # nn.init.trunc_normal_(self.context_decoder.gamma)
+        nn.init.trunc_normal_(self.context_decoder.gamma, std=.02)
 
         if return_keys:
             self.keys_proj = nn.Linear(text_dim, out_dim)
@@ -143,7 +143,7 @@ class TextDecoder(nn.Module):
         contextualized_text = self.context_decoder(text=text_emb, visual=visual_emb)
         
         keys = self.keys_proj(contextualized_text) if self.return_keys else None          
-        queries = self.queries_proj(contextualized_text.mean(0)) if self.return_queries else None  
+        queries = self.queries_proj(contextualized_text) if self.return_queries else None  
 
         return keys, queries
     
