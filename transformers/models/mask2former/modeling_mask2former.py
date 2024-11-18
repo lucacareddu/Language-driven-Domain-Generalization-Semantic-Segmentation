@@ -2092,7 +2092,7 @@ class Mask2FormerTransformerModule(nn.Module):
 
         # [num_queries, batch_size, num_channels]
         query_embeddings = self.queries_embedder.weight.unsqueeze(1).repeat(1, batch_size, 1)
-        query_features = (self.text_queries if self.text_queries is not None else self.queries_features.weight).unsqueeze(1).repeat(1, batch_size, 1)
+        query_features = self.text_queries.permute(1,0,2) if self.text_queries is not None else self.queries_features.weight.unsqueeze(1).repeat(1, batch_size, 1)
 
         decoder_output = self.decoder(
             inputs_embeds=query_features,

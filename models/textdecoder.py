@@ -92,6 +92,8 @@ class TextDecoder(nn.Module):
 
         self.missing_emb = nn.Parameter(torch.randn(19, text_dim)) # missing classes place-holder embeddings
         
+        # self.unlabelled_class_emb = nn.Parameter(torch.randn(1, text_dim)) # class 19 (0-18)
+        
         self.text_proj = nn.Parameter(torch.randn(text_dim, text_dim)) 
         
         self.visual_norm = nn.LayerNorm(visual_dim)
@@ -106,7 +108,7 @@ class TextDecoder(nn.Module):
                                                         visual_dim=text_dim,
                                                         dropout=0.1)
 
-        # nn.init.trunc_normal_(self.context_decoder.gamma)
+        nn.init.trunc_normal_(self.context_decoder.gamma, std=.02)
 
         if return_keys:
             self.keys_proj = nn.Linear(text_dim, out_dim)
@@ -131,9 +133,16 @@ class TextDecoder(nn.Module):
             nn.init.constant_(m.weight, 1.0)
             nn.init.constant_(m.bias, 0)
 
-    def forward(self, text: Tensor, visual: Tensor):
+    def forward(self, text: Tensor, visual: Tensor, classes: List):
+        text = text.repeat(visual.shape[0],1,1)
+        # text = torch.cat([text, self.unlabelled_class_emb.expand(visual.shape[0],-1,-1)], dim=1)
+
+        missing_classes = torch.where(torch.stack([torch.bincount(x, minlength=19) for x in classes]) == False)
+        text[missing_classes] = 0
+
         missing_emb = self.missing_emb.expand(visual.shape[0],-1,-1)
         text[text == 0] += missing_emb[text == 0]
+
         text_emb = text @ self.text_proj
         # text_emb = text_emb.expand(visual.shape[0],-1,-1)
 
@@ -143,7 +152,7 @@ class TextDecoder(nn.Module):
         contextualized_text = self.context_decoder(text=text_emb, visual=visual_emb)
         
         keys = self.keys_proj(contextualized_text) if self.return_keys else None          
-        queries = self.queries_proj(contextualized_text.mean(0)) if self.return_queries else None  
+        queries = self.queries_proj(contextualized_text) if self.return_queries else None  
 
         return keys, queries
     

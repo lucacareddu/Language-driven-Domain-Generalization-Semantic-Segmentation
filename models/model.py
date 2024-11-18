@@ -14,7 +14,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class DGSSModel(nn.Module):
-    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=True, no_neck=False, depthwise_neck=False, tqdm_neck=False, use_text_keys=False, use_text_queries=True, nqueries=100):
+    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=False, no_neck=True, depthwise_neck=False, tqdm_neck=False, use_text_keys=False, use_text_queries=True, nqueries=100):
         super().__init__()
 
         self.has_text_decoder = "clip" in encoder_name and text_prompts is not None
@@ -99,11 +99,7 @@ class DGSSModel(nn.Module):
         if self.has_text_decoder:
             text_outputs = self.encoder.get_text_features(input_ids=self.text_ids, attention_mask=self.text_att)
 
-            text_outputs = text_outputs.repeat(vision_hidden_states[-1].shape[0],1,1)
-            missing_classes = torch.where(torch.stack([torch.bincount(x, minlength=19) for x in classes]) == False)
-            text_outputs[missing_classes] = 0
-
-            keys, queries = self.text_decoder(text=text_outputs, visual=vision_hidden_states[-1])
+            keys, queries = self.text_decoder(text=text_outputs, visual=vision_hidden_states[-1], classes=classes)
 
             if keys is not None:
                 # To cross-attention layers in pixel decoder (mask2former encoder) as key-value
