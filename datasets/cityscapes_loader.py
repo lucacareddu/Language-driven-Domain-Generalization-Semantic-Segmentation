@@ -58,7 +58,7 @@ class CityscapesDataset(Dataset):
 
         lbl = self.encode_label(lbl)
 
-        if self.split == "train": 
+        if self.split == "train" or self.stats: 
             # Training
             img = torch.from_numpy(np.transpose(img,(2, 1, 0)))
             lbl = torch.from_numpy(np.transpose(lbl)).long()
@@ -92,11 +92,10 @@ class CityscapesDataset(Dataset):
         return output
     
 
-    def encode_label(self, label):
-        for _voidc in self.void_classes:
-            label[label == _voidc] = self.ignore_index # Put all void classes to ignore_index
-        for _validc in self.valid_classes:
-            label[label == _validc] = self.valid_map[_validc]
+    def encode_label(self, lbl):
+        label = self.ignore_index * np.ones(lbl.shape, dtype=np.uint8)
+        for k, v in self.valid_map.items():
+            label[lbl == k] = v
         return label
     
 

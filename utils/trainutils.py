@@ -9,7 +9,7 @@ def fix_seed(SEED, deterministic=False):
     torch.backends.cudnn.deterministic = deterministic
     torch.backends.cudnn.benchmark = False
 
-def df_dict_search(dictionary, class_names, max_length=300):
+def df_dict_search(dictionary, class_names, max_length=200):
     ret = {}
     for k,v in dictionary.items():
         if isinstance(dictionary[k], dict):

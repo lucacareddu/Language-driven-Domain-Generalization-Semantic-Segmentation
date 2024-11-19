@@ -68,10 +68,10 @@ gta_root_path = "/home/thesis/datasets/GTAV" #"/home/luca/data/gta"
 city_root_path = "/home/thesis/datasets/Cityscapes" #"/home/luca/data/cityscapes"
 
 train_gta = GTA5Dataset(root=gta_root_path, ignore_index=ignore_index, resize=gta_inp_size, transforms=None, rcs=rcs_enabled, rcs_temp=rcs_temperature, stats=True)
-val_city = CityscapesDataset(root=city_root_path, split="val", ignore_index=ignore_index, resize=None, transforms=None, stats=True)
+val_city = CityscapesDataset(root=city_root_path, split="val", ignore_index=ignore_index, resize=city_inp_size, transforms=None, stats=True)
 
-gta_train_loader = DataLoader(train_gta, batch_size=1, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, collate_fn=collate_fn)
-city_val_loader = DataLoader(val_city, batch_size=1, num_workers=num_workers, collate_fn=collate_fn)
+gta_train_loader = DataLoader(train_gta, batch_size=2, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, collate_fn=collate_fn)
+city_val_loader = DataLoader(val_city, batch_size=2, num_workers=num_workers, collate_fn=collate_fn)
 
 
 from transformers import BlipProcessor, BlipForConditionalGeneration
@@ -97,26 +97,38 @@ with torch.no_grad():
         labels = batch["label"].to(device)
         fnames = batch["fname"]
 
-        classes = torch.unique(labels)
-        classes = classes[classes != ignore_index]
+        # classes = torch.unique(labels)
+        # classes = classes[classes != ignore_index]
 
-        results[fnames[0]] = dict()
+        # results[fnames[0]] = dict()
 
-        # print(fnames[0])
+        # # print(fnames[0])
+
+        # # conditional image captioning
+        # for c in classes:
+        #     prompt = f"there is {tau}" if (tau := CITY_VALID_CLASSES[c]) in ["vegetation","terrain","sky"] else f"there is a {tau}"
+
+        #     inputs = processor(images, prompt, return_tensors="pt", do_rescale=False, padding=True).to("cuda")
+
+        #     out = model.generate(**inputs)
+
+        #     batch_text = processor.batch_decode(out, skip_special_tokens=True)
+
+        #     # print(fnames[0], batch_text[0])
+            
+        #     results[fnames[0]][c.item()] = batch_text[0]
+
 
         # conditional image captioning
-        for c in classes:
-            prompt = f"there is {tau}" if (tau := CITY_VALID_CLASSES[c]) in ["vegetation","terrain","sky"] else f"there is a {tau}"
+        prompt = ["a photo of"] * len(fnames)
+        inputs = processor(images, prompt, return_tensors="pt", do_rescale=False, padding=True).to("cuda")
 
-            inputs = processor(images, prompt, return_tensors="pt", do_rescale=False, padding=True).to("cuda")
+        out = model.generate(**inputs)
 
-            out = model.generate(**inputs)
+        batch_text = processor.batch_decode(out, skip_special_tokens=True)
 
-            batch_text = processor.batch_decode(out, skip_special_tokens=True)
-
-            # print(fnames[0], batch_text[0])
-            
-            results[fnames[0]][c.item()] = batch_text[0]
+        for n, t in zip(fnames, batch_text):
+            results[n] = t
 
         if i%100 == 0:
             with open(f'captions_city_val_{timestamp}.json', 'w') as of:
