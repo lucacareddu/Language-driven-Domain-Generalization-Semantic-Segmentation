@@ -101,6 +101,7 @@ else:
     params.append({'params': model.encoder.parameters()})
 
 params.append({'params': model.neck.parameters()})
+params.append({'params': model.missing_class_predictor.parameters(), 'lr': lr * 10})
 params.append({'params': model.vision_decoder.parameters(), 'lr': lr * 10})
 
 if model.has_text_decoder:
@@ -122,9 +123,11 @@ import glob
 def f3(string):
     return re.findall(r'[0-9]+', string)
 
-path = "checkpoints/20-11_11-45-24"
+path = "checkpoints/22-11_19-16-36"
 
 files = sorted(glob.glob(f"{path}/*.pth"), key = lambda x: int(f3(x)[-1]))
+
+# print(torch.mean(model.missing_class_predictor.weight), torch.std(model.missing_class_predictor.weight))
 
 for resume_path in files:
     i_iter = resume_checkpoint(resume_path, model, optimizer) - 1
@@ -132,6 +135,8 @@ for resume_path in files:
     print()
     print(path, " : ", i_iter)
     print()
+
+    # print(torch.mean(model.missing_class_predictor.weight), torch.std(model.missing_class_predictor.weight))
     
     model.eval()
     with torch.no_grad():
@@ -139,7 +144,9 @@ for resume_path in files:
         runn_bins = torch.zeros((3, 19)).to(device)
         loop = tqdm(city_val_loader, leave=False)
         
-        for batch in loop:
+        for i,batch in enumerate(loop):
+            if i==10:
+                break
             images = batch["image"].to(device)
             labels = batch["label"].to(device)
             classes = [x.to(device) for x in batch["classes"]]

@@ -91,13 +91,6 @@ class TextDecoder(nn.Module):
         assert return_keys or return_queries   
 
         self.missing_emb = nn.Parameter(torch.randn(19, text_dim)) # missing classes place-holder embeddings
-
-        # self.present_emb = nn.Parameter(torch.randn(19, text_dim)) # present classes complementary embeddings
-
-        # self.gamma = nn.Parameter(torch.empty(text_dim)) # contribution of present classes complementary embeddings
-        # nn.init.trunc_normal_(self.gamma, std=.01)
-        
-        # self.unlabelled_class_emb = nn.Parameter(torch.randn(1, text_dim)) # class 19 (0-18)
         
         self.text_proj = nn.Parameter(torch.randn(text_dim, text_dim)) 
         
@@ -140,19 +133,14 @@ class TextDecoder(nn.Module):
 
     def forward(self, text: Tensor, visual: Tensor, classes: List):
         text = text.repeat(visual.shape[0],1,1)
-        # text = torch.cat([text, self.unlabelled_class_emb.expand(visual.shape[0],-1,-1)], dim=1)
 
-        missing_classes = torch.where(torch.stack([torch.bincount(x, minlength=19) for x in classes]) == False)
+        missing_classes = torch.stack([torch.bincount(x, minlength=19) for x in classes]) == 0
         text[missing_classes] = 0
-
-        # present_emb = self.present_emb.expand(visual.shape[0],-1,-1)
-        # text[text != 0] += (present_emb * torch.nn.functional.sigmoid(self.gamma))[text != 0]
 
         missing_emb = self.missing_emb.expand(visual.shape[0],-1,-1)
         text[text == 0] += missing_emb[text == 0]
 
         text_emb = text @ self.text_proj
-        # text_emb = text_emb.expand(visual.shape[0],-1,-1)
 
         visual_emb = self.visual_norm(visual)
         visual_emb = visual @ self.visual_proj
