@@ -4,10 +4,8 @@ timestamp = datetime.datetime.now().strftime('%d-%m_%H-%M-%S')
 
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-from torch import nn
 
 from models import DGSSModel
-from transformers import SegformerForSemanticSegmentation
 
 from datasets import GTA5Dataset, CityscapesDataset
 from datasets.transformscpu import *
@@ -33,6 +31,7 @@ else:
     config = json.load(open("configs/config.json"))
 
 encoder_name = config["encoder"]
+use_text = "clip" in encoder_name and config["use_text"]
 gta_inp_size = tuple(config["gta"]["input_size"])
 city_inp_size = tuple(config["city"]["input_size"])
 rcs_enabled = config["rcs"]["enable"]
@@ -61,37 +60,34 @@ if True:
 #################################################################################################
 
 gta_augmentations = Compose([CentroidCCrop(crop_size)])
-# city_augmentations = Compose([RandomCrop(crop_size)])
 city_val_augmentations = Compose([TwoCropsCityVal(crop_size)])
 
-train_gta = GTA5Dataset(root="/home/luca/data/gta", ignore_index=ignore_index, resize=gta_inp_size, transforms=gta_augmentations, rcs=rcs_enabled, rcs_temp=rcs_temperature)
-# train_city = CityscapesDataset(root="/home/luca/data/cityscapes", split="train", ignore_index=ignore_index, resize=city_inp_size, transforms=city_augmentations)
-val_city = CityscapesDataset(root="/home/luca/data/cityscapes", split="train", ignore_index=ignore_index, resize=city_inp_size, transforms=city_val_augmentations)
-# test_city = CityscapesDataset(root="/home/luca/data/cityscapes", split="test", ignore_index=ignore_index, resize=city_inp_size, transforms=city_val_augmentations)
+gta_root_path = "/home/luca/data/gta" #"/home/thesis/datasets/GTAV" #
+city_root_path = "/home/luca/data/cityscapes" #"/home/thesis/datasets/Cityscapes" #
 
-gta_train_loader = DataLoader(train_gta, batch_size=batch_size, shuffle=True, num_workers=num_workers, collate_fn=collate_fn)
-# city_train_loader = DataLoader(train_city, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-city_val_loader = DataLoader(val_city, batch_size=1, num_workers=num_workers, collate_fn=collate_fn)
-# city_test_loader = DataLoader(test_city, batch_size=batch_size, num_workers=num_workers)
+train_gta = GTA5Dataset(root=gta_root_path, ignore_index=ignore_index, resize=gta_inp_size, transforms=gta_augmentations, rcs=rcs_enabled, rcs_temp=rcs_temperature)
+val_city = CityscapesDataset(root=city_root_path, split="val", ignore_index=ignore_index, resize=city_inp_size, transforms=city_val_augmentations)
 
-if True:
-    print("Class definitions employed.")
-    with open("class_definition/class_definition.json","r") as f:
-        class_definition = json.load(f)
-        class_definition = df_dict_search(dictionary=class_definition, class_names=CITY_VALID_CLASSES)
-        text_prompts = [f"{c}: " + class_definition[c] for c in CITY_VALID_CLASSES]
-        # print([len(x) for x in text_prompts])
-else:
-    print("Class names employed.")
-    text_prompts = [f"a photo of a {c}." for c in CITY_VALID_CLASSES]
+gta_train_loader = DataLoader(train_gta, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, collate_fn=collate_fn)
+city_val_loader = DataLoader(val_city, batch_size=batch_size//2, num_workers=num_workers, collate_fn=collate_fn)
+
+text_prompts = None
+
+if use_text:
+    if True:
+        print("Class definitions employed.")
+        with open("class_definition/class_definition.json","r") as f:
+            class_definition = json.load(f)
+            class_definition = df_dict_search(dictionary=class_definition, class_names=CITY_VALID_CLASSES)
+            text_prompts = [f"{c}: " + class_definition[c] for c in CITY_VALID_CLASSES]
+            # print([len(x) for x in text_prompts])
+    else:
+        print("Class names employed.")
+        text_prompts = [f"a photo of a {c}." for c in CITY_VALID_CLASSES]
 
 #################################################################################################
 
-if True:
-    model = DGSSModel(clip_name=encoder_name, ignore_index=ignore_index,  reins=False)#text_prompts=text_prompts,)
-else:
-    model = SegformerForSemanticSegmentation.from_pretrained(encoder_name, num_labels=19, semantic_loss_ignore_index=ignore_index)
-
+model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts)
 model.to(device)
 
 model.print_trainable_params()
@@ -99,18 +95,17 @@ model.print_frozen_modules()
 
 params = []
 
-if model.is_reins:
-    params.append({'params': model.encoders.vision_model.encoder.reins.parameters()})
+if "clip" in model.encoder_name and model.freeze_text_encoder:
+    params.append({'params': model.encoder.vision_model.parameters()})
 else:
-    params.append({'params': model.encoders.vision_model.parameters()})
-
-if model.is_text_decoder:
-    params.append({'params': model.text_decoder.parameters()})
+    params.append({'params': model.encoder.parameters()})
 
 params.append({'params': model.neck.parameters()})
+params.append({'params': model.vision_decoder.parameters(), 'lr': lr * 10})
 
-params.append({'params': model.vision_decoder.parameters(), 'lr': lr*10})
-
+if model.has_text_decoder:
+    params.append({'params': model.text_decoder.parameters()})#, 'lr': lr * 10})
+    
 optimizer = torch.optim.AdamW(params, lr=lr)
 
 #################################################################################################
@@ -127,7 +122,7 @@ import glob
 def f3(string):
     return re.findall(r'[0-9]+', string)
 
-path = "checkpoints/08-11_19-56-34"
+path = "checkpoints/20-11_11-45-24"
 
 files = sorted(glob.glob(f"{path}/*.pth"), key = lambda x: int(f3(x)[-1]))
 
@@ -154,11 +149,6 @@ for resume_path in files:
                 images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
 
             loss, upsampled_logits = model(pixel_values=images, bin_masks=binmasks, classes=classes, return_logits=True)
-                
-            # loss, logits = outputs.loss, outputs.logits
-
-            # upsampled_logits = nn.functional.interpolate(logits, size=crop_size, mode="bilinear", align_corners=False)
-            # predicted = torch.stack(upsampled_logits).argmax(dim=1)
 
             upsampled_logits = upsampled_logits.detach()
 
@@ -175,6 +165,11 @@ for resume_path in files:
         print("mIoU (Val): ", miou)
         print("mAcc (Val): ", macc)
         
-        tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
-        tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
-        tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
+        try:
+            tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
+            tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
+            tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
+        except:
+            pass
+
+        del upsampled_logits, labels
