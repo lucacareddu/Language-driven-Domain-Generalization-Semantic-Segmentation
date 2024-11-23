@@ -50,6 +50,8 @@ lr = config["optimizer"]["learning_rate"]
 lr_power = config["optimizer"]["lr_power"]
 lr_warmup_iters = config["optimizer"]["lr_warmup_iterations"]
 
+debug = config["debug_mode"]
+
 #################################################################################################
 
 SEED = 0
@@ -110,13 +112,14 @@ optimizer = torch.optim.AdamW(params, lr=lr)
 
 #################################################################################################
 
-log_dir = os.path.join(log_dir, timestamp)
-os.makedirs(log_dir)
-tb_writer = tensorboard.SummaryWriter(log_dir, flush_secs=30)
+if not debug:
+    log_dir = os.path.join(log_dir, timestamp)
+    os.makedirs(log_dir)
+    tb_writer = tensorboard.SummaryWriter(log_dir, flush_secs=30)
 
-checkpoint_dir = os.path.join(checkpoint_dir, timestamp)
-os.makedirs(checkpoint_dir)
-save_json(checkpoint_dir, config)
+    checkpoint_dir = os.path.join(checkpoint_dir, timestamp)
+    os.makedirs(checkpoint_dir)
+    save_json(checkpoint_dir, config)
 
 #################################################################################################
 
@@ -150,17 +153,19 @@ for i_iter in trange(iter_start, max_iterations):
 
     optimizer.step()
 
-    try:
-        tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
-        tb_writer.add_scalar("Loss", loss, i_iter)
-    except:
-        pass
-
-    if do_checkpoints and (i_iter+1) % iters_per_save == 0:
+    if not debug:
         try:
-            save_checkpoint(checkpoint_dir, i_iter, model, optimizer)
+            tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
+            tb_writer.add_scalar("Loss", loss, i_iter)
         except:
             pass
+
+    if do_checkpoints and (i_iter+1) % iters_per_save == 0:
+        if not debug:
+            try:
+                save_checkpoint(checkpoint_dir, i_iter, model, optimizer)
+            except:
+                pass
 
     if (i_iter+1) % iters_per_val == 0:
         print("Loss: ", loss.item())
@@ -197,11 +202,12 @@ for i_iter in trange(iter_start, max_iterations):
             print("mIoU (Val): ", miou)
             print("mAcc (Val): ", macc)
             
-            try:
-                tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
-                tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
-                tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
-            except:
-                pass
+            if not debug:
+                try:
+                    tb_writer.add_scalar("Loss (Val):", mloss, i_iter)
+                    tb_writer.add_scalar("mIoU (Val):", miou, i_iter)
+                    tb_writer.add_scalar("mAcc (Val):", macc, i_iter)
+                except:
+                    pass
 
             del upsampled_logits, labels
