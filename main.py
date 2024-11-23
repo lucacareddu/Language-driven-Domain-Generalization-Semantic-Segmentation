@@ -120,6 +120,8 @@ if not debug:
     checkpoint_dir = os.path.join(checkpoint_dir, timestamp)
     os.makedirs(checkpoint_dir)
     save_json(checkpoint_dir, config)
+else:
+    print("\nWARNING! PROCEDING IN DEBUG MODE (no logs are saved).\n")
 
 #################################################################################################
 
