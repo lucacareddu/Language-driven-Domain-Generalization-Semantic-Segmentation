@@ -15,9 +15,12 @@ class CityscapesDataset(Dataset):
         self.transforms = transforms
         self.stats = stats
         
+        images_prefix = 'leftImg8bit_trainvaltest/leftImg8bit' #"rgb" #
+        labels_prefix = 'gtFine_trainvaltest/gtFine' #"gt" #
+        
         self.files = {
-            "images" : glob.glob(f"{os.path.join(root, 'leftImg8bit_trainvaltest', 'leftImg8bit', self.split)}/*/*.png"),
-            "labels" : glob.glob(f"{os.path.join(root, 'gtFine_trainvaltest', 'gtFine', self.split)}/*/*gtFine_labelIds.png")
+            "images" : glob.glob(f"{os.path.join(root, images_prefix, self.split)}/*/*.png"),
+            "labels" : glob.glob(f"{os.path.join(root, labels_prefix, self.split)}/*/*gtFine_labelIds.png")
         }
         
         self.files["images"].sort()
