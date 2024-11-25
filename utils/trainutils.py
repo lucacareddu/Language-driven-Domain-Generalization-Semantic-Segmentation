@@ -39,9 +39,6 @@ def collate_fn(batch):
                 "classes": [x["classes"] for x in batch], 
                 "bin_masks": [x["bin_masks"] for x in batch]
             })
-
-    if "rare_class" in batch[0].keys():
-        output["rare_class"] = torch.stack([x["rare_class"] for x in batch])
         
     return output
 
@@ -62,6 +59,8 @@ def adjust_learning_rate(lr, lr_power, i_iter, warmup_iters, max_iterations, opt
     else:
         learning_rate = lr_poly(lr, i_iter-warmup_iters, max_iterations-warmup_iters, lr_power)
 
-    optimizer.param_groups[0]['lr'] = learning_rate
-    # if len(optimizer.param_groups) > 1 :
-    #     optimizer.param_groups[1]['lr'] = learning_rate * 10
+    for param in optimizer.param_groups:
+        if param["name"] == "vision_decoder":
+            param['lr'] = learning_rate * 10
+        else:
+            param['lr'] = learning_rate

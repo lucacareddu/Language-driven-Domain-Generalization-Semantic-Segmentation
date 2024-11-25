@@ -108,6 +108,11 @@ class TextDecoder(nn.Module):
 
         nn.init.trunc_normal_(self.context_decoder.gamma, std=.02)
 
+        self.missing_class_predictor = nn.Linear(text_dim, 1)
+        nn.init.trunc_normal_(self.missing_class_predictor.weight, std=.01)
+
+        self.missing_class_criterion = nn.BCELoss()
+
         if return_keys:
             self.keys_proj = nn.Linear(text_dim, out_dim)
             self.keys_proj.apply(self._init_weights)
@@ -132,13 +137,16 @@ class TextDecoder(nn.Module):
             nn.init.constant_(m.bias, 0)
 
     def forward(self, text: Tensor, visual: Tensor, classes: List):
-        text = text.repeat(visual.shape[0],1,1)
+        # text = text.repeat(visual.shape[0],1,1)
 
-        missing_classes = torch.stack([torch.bincount(x, minlength=19) for x in classes]) == 0
-        text[missing_classes] = 0
+        # missing_classes = torch.stack([torch.bincount(x, minlength=19) for x in classes]) == 0
+        # text[missing_classes] = 0
 
-        missing_emb = self.missing_emb.expand(visual.shape[0],-1,-1)
-        text[text == 0] += missing_emb[text == 0]
+        # missing_emb = self.missing_emb.expand(visual.shape[0],-1,-1)
+        # text[text == 0] += missing_emb[text == 0]
+
+        text = text.expand(visual.shape[0],-1,-1)
+
 
         text_emb = text @ self.text_proj
 
@@ -146,9 +154,23 @@ class TextDecoder(nn.Module):
         visual_emb = visual @ self.visual_proj
 
         contextualized_text = self.context_decoder(text=text_emb, visual=visual_emb)
+
+        
+        gt_missing_classes = (torch.stack([torch.bincount(x, minlength=19) for x in classes]) == 0).float()
+
+        missing_classes = torch.nn.functional.sigmoid(self.missing_class_predictor(contextualized_text).squeeze())
+        
+        loss = self.missing_class_criterion(missing_classes, gt_missing_classes)
+        
+        contextualized_text = contextualized_text.clone()
+        contextualized_text[missing_classes > 0.5] = 0
+
+        missing_emb = self.missing_emb.expand(visual.shape[0],-1,-1)
+        contextualized_text[contextualized_text == 0] += missing_emb[contextualized_text == 0]
+        
         
         keys = self.keys_proj(contextualized_text) if self.return_keys else None          
         queries = self.queries_proj(contextualized_text) if self.return_queries else None  
 
-        return keys, queries
+        return loss, keys, queries
     

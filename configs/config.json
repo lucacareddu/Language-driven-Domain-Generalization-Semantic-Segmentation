@@ -1,21 +1,30 @@
 {
+  "remote":0,
+  
   "debug_mode":0,
-  "encoder":"tiny_clip",
-  "use_text":1,
+
   "gta":{
+    "local_root":"/home/luca/data/gta",
+    "remote_root":"/home/thesis/datasets/GTAV",
     "input_size":[1280,720]
   },
+
   "city":{
+    "local_root":"/home/luca/data/cityscapes",
+    "remote_root":"/home/thesis/datasets/Cityscapes",
     "input_size":[1024,512]
   },
-  "rcs":{
-    "enable":0,
-    "temperature":0.01
-  },
+
   "preprocessing":{
     "ignore_index":255,
     "crop_size":[512,512]
+  },  
+  
+  "encoder":{
+    "name":"tiny_clip",
+    "use_text":0
   },
+
   "training":{
     "batch_size":2,
     "num_workers":4,
@@ -26,9 +35,11 @@
     "iters_per_save":4000,
     "checkpoint_dir":"checkpoints"
   },
+  
   "optimizer":{
     "learning_rate":1e-5,
     "lr_power":1,
     "lr_warmup_iterations":1500
   }
+
 }

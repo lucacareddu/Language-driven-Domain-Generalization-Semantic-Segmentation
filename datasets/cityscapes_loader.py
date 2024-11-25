@@ -15,8 +15,11 @@ class CityscapesDataset(Dataset):
         self.transforms = transforms
         self.stats = stats
         
-        images_prefix = 'leftImg8bit_trainvaltest/leftImg8bit' #"rgb" #
-        labels_prefix = 'gtFine_trainvaltest/gtFine' #"gt" #
+        images_prefix = 'leftImg8bit_trainvaltest/leftImg8bit' # local folder
+        labels_prefix = 'gtFine_trainvaltest/gtFine' # local folder
+        
+        images_prefix = images_prefix if os.path.exists(os.path.join(root, images_prefix)) else 'rgb' # remote folder
+        labels_prefix = labels_prefix if os.path.exists(os.path.join(root, labels_prefix)) else 'gt' # remote folder
         
         self.files = {
             "images" : glob.glob(f"{os.path.join(root, images_prefix, self.split)}/*/*.png"),
@@ -42,6 +45,7 @@ class CityscapesDataset(Dataset):
 
     def __getitem__(self, idx):
         # idx = self.rand_indices[idx]
+        
         img = Image.open(self.files["images"][idx]).convert('RGB')
         lbl = Image.open(self.files["labels"][idx])
         name = self.files["images"][idx].split("/")[-1]

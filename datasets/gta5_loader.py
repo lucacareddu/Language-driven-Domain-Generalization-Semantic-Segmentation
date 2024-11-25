@@ -4,11 +4,10 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-import json
 
 
 class GTA5Dataset(Dataset):
-    def __init__(self, root, ignore_index, resize=None, transforms=None, rcs=False, rcs_temp=0.01, stats=False):
+    def __init__(self, root, ignore_index, resize=None, transforms=None, stats=False):
         self.root = root
         self.ignore_index = ignore_index
         self.resize = resize
@@ -28,15 +27,6 @@ class GTA5Dataset(Dataset):
 
         # self.rand_indices = np.random.choice(list(range(len(self.files["images"]))), size=500, replace=False)
 
-        self.rcs = rcs
-        if rcs:
-            self.class_rareness, self.class_popul, self.class_centr = self.get_rcs_stats(rcs_temp)
-
-            # from utils.colors import CITY_VALID_CLASSES
-
-            # for i, (n,r,p) in enumerate(zip(CITY_VALID_CLASSES, self.class_rareness, self.class_popul)):
-            #     print('Class {} {} Rar {:.3f} Ex {}'.format(i, n, r, len(p)))
-
 
     def __len__(self):
         return len(self.files["images"]) # len(self.rand_indices)
@@ -44,10 +34,6 @@ class GTA5Dataset(Dataset):
 
     def __getitem__(self, idx):
         # idx = self.rand_indices[idx]
-        if self.rcs:
-            c = np.random.choice(list(range(19)), p=self.class_rareness)
-            f = self.class_popul[c].pop()
-            idx = self.files["images"].index(os.path.join(self.root,"images",f))
             
         img = Image.open(self.files["images"][idx]).convert('RGB')
         lbl = Image.open(self.files["labels"][idx])
@@ -58,7 +44,7 @@ class GTA5Dataset(Dataset):
             lbl = lbl.resize(self.resize, Image.NEAREST)
 
         if self.transforms:
-            img, lbl = self.transforms(img, lbl) if not self.rcs else self.transforms(img, lbl, self.class_centr[c].pop())
+            img, lbl = self.transforms(img, lbl)
         else:
             img = np.array(img, np.float32) / 255
             lbl = np.array(lbl, np.uint8)
@@ -84,8 +70,6 @@ class GTA5Dataset(Dataset):
                 "bin_masks": binary_masks,
                 "fname": name
                 }
-        if self.rcs:
-            output["rare_class"] = torch.tensor(c)
 
         return output
     
@@ -96,26 +80,6 @@ class GTA5Dataset(Dataset):
         for k, v in self.gtaid2cityid.items():
             label[lbl == k] = v
         return label
-    
-
-    def get_rcs_stats(self, temperature):
-        with open(os.path.join(self.root, 'GTA5_class_pixels.json'), 'r') as of:
-            class_pixels_freq = json.load(of)
-
-        freq = torch.tensor(list(class_pixels_freq.values()))
-        freq = freq / torch.sum(freq)
-        freq = 1 - freq
-        freq = torch.softmax(freq / temperature, dim=-1)
-
-        with open(os.path.join(self.root, 'GTA5_class_popul.json'), 'r') as of:
-            class_popul_names = json.load(of)
-            class_popul_names = list(class_popul_names.values())
-
-        with open(os.path.join(self.root, 'GTA5_class_centr.json'), 'r') as of:
-            class_popul_centr = json.load(of)
-            class_popul_centr = list(class_popul_centr.values())
-
-        return freq.numpy(), class_popul_names, class_popul_centr
 
 
 
@@ -130,7 +94,7 @@ if __name__=="__main__":
 
     transforms = Compose([CentroidCCrop((512,512))])
 
-    ds = GTA5Dataset(root="/home/luca/data/gta", ignore_index=255, resize=(1280,720), transforms=transforms, rcs=True)
+    ds = GTA5Dataset(root="/home/luca/data/gta", ignore_index=255, resize=(1280,720), transforms=transforms)
     dl = DataLoader(ds, batch_size=1, shuffle=True, num_workers=1)
 
     for b in dl:

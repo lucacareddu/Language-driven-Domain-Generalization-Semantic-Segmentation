@@ -22,9 +22,9 @@ class DGSSModel(nn.Module):
 
         self.encoder_name = encoder_name
 
-        encoder_config = {"vit":"google/vit-base-patch32-224-in21k",
+        encoder_config = {"vit":"google/vit-base-patch16-224-in21k",
                           "tiny_clip":"wkcn/TinyCLIP-ViT-8M-16-Text-3M-YFCC15M",
-                          "clip":"openai/clip-vit-base-patch32"}[encoder_name]
+                          "clip":"openai/clip-vit-base-patch16"}[encoder_name]
         
         encoder_visual_dim = {"vit":768, "tiny_clip":256, "clip":768}[encoder_name]
         encoder_text_dim = {"vit":None, "tiny_clip":256, "clip":512}[encoder_name]    
@@ -38,7 +38,7 @@ class DGSSModel(nn.Module):
         else:
             self.neck = tqdmNeck(width=encoder_visual_dim)
 
-        if encoder_name == "tiny_clip":
+        if encoder_name == "xxx":
             vision_decoder_config = Mask2FormerConfig(num_labels=nclasses, ignore_value=ignore_value, feature_channels=[encoder_visual_dim] * 3, encoder_layers=1, decoder_layers=3, num_queries=(nclasses if self.has_text_decoder else nqueries))
         else:
             vision_decoder_config = Mask2FormerConfig(num_labels=nclasses, ignore_value=ignore_value, feature_channels=[encoder_visual_dim] * 3, num_queries=(nclasses if self.has_text_decoder else nqueries))
@@ -99,7 +99,7 @@ class DGSSModel(nn.Module):
         if self.has_text_decoder:
             text_outputs = self.encoder.get_text_features(input_ids=self.text_ids, attention_mask=self.text_att)
 
-            keys, queries = self.text_decoder(text=text_outputs, visual=vision_hidden_states[-1], classes=classes)
+            cls_loss, keys, queries = self.text_decoder(text=text_outputs, visual=vision_hidden_states[-1], classes=classes)
 
             if keys is not None:
                 # To cross-attention layers in pixel decoder (mask2former encoder) as key-value
@@ -113,7 +113,7 @@ class DGSSModel(nn.Module):
 
         decoder_outputs = self.vision_decoder(pixel_values=multi_scale_feats, mask_labels=bin_masks, class_labels=classes)
 
-        loss = decoder_outputs.loss
+        loss = decoder_outputs.loss# + cls_loss
         
         if return_logits:
             upsampled_logits = self.vision_decoder_processor.post_process_semantic_segmentation(decoder_outputs, target_sizes=[pixel_values.shape[-2:]] * pixel_values.shape[0])

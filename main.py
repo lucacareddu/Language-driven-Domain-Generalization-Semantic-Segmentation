@@ -11,6 +11,9 @@ from datasets import GTA5Dataset, CityscapesDataset
 from datasets.transformscpu import *
 from datasets import transformsgpu
 
+from torchvision import transforms
+normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+
 from torch.utils.data import DataLoader
 
 from utils import *
@@ -30,12 +33,15 @@ if resume_path is not None:
 else:
     config = json.load(open("configs/config.json"))
 
-encoder_name = config["encoder"]
-use_text = "clip" in encoder_name and config["use_text"]
+
+debug = config["debug_mode"]
+
+encoder_name = config["encoder"]["name"]
+use_text = "clip" in encoder_name and config["encoder"]["use_text"]
+gta_root = config["gta"]["remote_root"] if config["remote"] else config["gta"]["local_root"]
 gta_inp_size = tuple(config["gta"]["input_size"])
+city_root = config["city"]["remote_root"] if config["remote"] else config["city"]["local_root"]
 city_inp_size = tuple(config["city"]["input_size"])
-rcs_enabled = config["rcs"]["enable"]
-rcs_temperature = config["rcs"]["temperature"]
 ignore_index = config["preprocessing"]["ignore_index"]
 crop_size = tuple(config["preprocessing"]["crop_size"])
 batch_size = config["training"]["batch_size"]
@@ -50,8 +56,6 @@ lr = config["optimizer"]["learning_rate"]
 lr_power = config["optimizer"]["lr_power"]
 lr_warmup_iters = config["optimizer"]["lr_warmup_iterations"]
 
-debug = config["debug_mode"]
-
 #################################################################################################
 
 SEED = 0
@@ -64,11 +68,8 @@ if True:
 gta_augmentations = Compose([CentroidCCrop(crop_size)])
 city_val_augmentations = Compose([TwoCropsCityVal(crop_size)])
 
-gta_root_path = "/home/luca/data/gta" #"/home/thesis/datasets/GTAV" #
-city_root_path = "/home/luca/data/cityscapes" #"/home/thesis/datasets/Cityscapes" #
-
-train_gta = GTA5Dataset(root=gta_root_path, ignore_index=ignore_index, resize=gta_inp_size, transforms=gta_augmentations, rcs=rcs_enabled, rcs_temp=rcs_temperature)
-val_city = CityscapesDataset(root=city_root_path, split="val", ignore_index=ignore_index, resize=city_inp_size, transforms=city_val_augmentations)
+train_gta = GTA5Dataset(root=gta_root, ignore_index=ignore_index, resize=gta_inp_size, transforms=gta_augmentations)
+val_city = CityscapesDataset(root=city_root, split="val", ignore_index=ignore_index, resize=city_inp_size, transforms=city_val_augmentations)
 
 gta_train_loader = DataLoader(train_gta, batch_size=batch_size, shuffle=True, num_workers=num_workers, persistent_workers=True, pin_memory=True, collate_fn=collate_fn)
 city_val_loader = DataLoader(val_city, batch_size=batch_size//2, num_workers=num_workers, collate_fn=collate_fn)
@@ -98,15 +99,15 @@ model.print_frozen_modules()
 params = []
 
 if "clip" in model.encoder_name and model.freeze_text_encoder:
-    params.append({'params': model.encoder.vision_model.parameters()})
+    params.append({'name':"encoder", 'params': model.encoder.vision_model.parameters()})
 else:
-    params.append({'params': model.encoder.parameters()})
+    params.append({'name':"encoder", 'params': model.encoder.parameters()})
 
-params.append({'params': model.neck.parameters()})
-params.append({'params': model.vision_decoder.parameters(), 'lr': lr * 10})
+params.append({'name':"neck", 'params': model.neck.parameters()})
+params.append({'name':"vision_decoder", 'params': model.vision_decoder.parameters()})
 
 if model.has_text_decoder:
-    params.append({'params': model.text_decoder.parameters()})#, 'lr': lr * 10})
+    params.append({'name':"text_decoder", 'params': model.text_decoder.parameters()})
     
 optimizer = torch.optim.AdamW(params, lr=lr)
 
@@ -140,7 +141,8 @@ for i_iter in trange(iter_start, max_iterations):
     binmasks = [x.to(device) for x in batch["bin_masks"]]
 
     if False:
-        images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
+        images = normalize(images)
+        # images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
         # images, labels = transformsgpu.train_aug(images=images, labels=binmasks, mean=IN_MEAN, std=IN_STD, normalization=True)
 
     model.train()
@@ -158,6 +160,7 @@ for i_iter in trange(iter_start, max_iterations):
     if not debug:
         try:
             tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
+            tb_writer.add_scalar("lr_dec", optimizer.param_groups[-1]["lr"], i_iter)
             tb_writer.add_scalar("Loss", loss, i_iter)
         except:
             pass
@@ -185,7 +188,8 @@ for i_iter in trange(iter_start, max_iterations):
                 binmasks = [x.to(device) for x in batch["bin_masks"]]                
 
                 if False:
-                    images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
+                    images = normalize(images)
+                    # images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
 
                 loss, upsampled_logits = model(pixel_values=images, bin_masks=binmasks, classes=classes, return_logits=True)
 
