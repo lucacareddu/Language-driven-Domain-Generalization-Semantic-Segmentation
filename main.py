@@ -140,7 +140,7 @@ for i_iter in trange(iter_start, max_iterations):
     classes = [x.to(device) for x in batch["classes"]]
     binmasks = [x.to(device) for x in batch["bin_masks"]]
 
-    if False:
+    if 1:
         images = normalize(images)
         # images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
         # images, labels = transformsgpu.train_aug(images=images, labels=binmasks, mean=IN_MEAN, std=IN_STD, normalization=True)
@@ -153,7 +153,7 @@ for i_iter in trange(iter_start, max_iterations):
 
     loss.backward()
 
-    # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
 
     optimizer.step()
 
@@ -187,7 +187,7 @@ for i_iter in trange(iter_start, max_iterations):
                 classes = [x.to(device) for x in batch["classes"]]
                 binmasks = [x.to(device) for x in batch["bin_masks"]]                
 
-                if False:
+                if 1:
                     images = normalize(images)
                     # images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
 
