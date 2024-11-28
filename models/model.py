@@ -117,7 +117,7 @@ class DGSSModel(nn.Module):
         
         if return_logits:
             upsampled_logits = self.vision_decoder_processor.post_process_semantic_segmentation(decoder_outputs, target_sizes=[pixel_values.shape[-2:]] * pixel_values.shape[0])
-            upsampled_logits = torch.cat(upsampled_logits)
+            upsampled_logits = torch.stack(upsampled_logits)
             return loss, upsampled_logits
         
         return loss
