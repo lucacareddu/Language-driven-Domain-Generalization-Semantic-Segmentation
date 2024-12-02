@@ -22,7 +22,7 @@
   
   "encoder":{
     "name":"tiny_clip",
-    "use_text":0
+    "use_text":1
   },
 
   "training":{
@@ -31,7 +31,7 @@
     "max_iterations":40000,
     "iters_per_val":4000,
     "log_dir":"logs",
-    "do_checkpoints":0,
+    "do_checkpoints":1,
     "iters_per_save":4000,
     "checkpoint_dir":"checkpoints"
   },
