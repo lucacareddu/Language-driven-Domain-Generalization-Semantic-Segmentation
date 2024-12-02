@@ -90,7 +90,7 @@ if use_text:
 
 #################################################################################################
 
-model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts)
+model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, freeze_text_encoder=True)
 model.to(device)
 
 model.print_trainable_params()
@@ -153,7 +153,7 @@ for i_iter in trange(iter_start, max_iterations):
 
     loss.backward()
 
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 0.01)
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
 
     optimizer.step()
 
