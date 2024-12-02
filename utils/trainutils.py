@@ -60,7 +60,7 @@ def adjust_learning_rate(lr, lr_power, i_iter, warmup_iters, max_iterations, opt
         learning_rate = lr_poly(lr, i_iter-warmup_iters, max_iterations-warmup_iters, lr_power)
 
     for param in optimizer.param_groups:
-        if param["name"] == "vision_decoder":
+        if param["name"] in ["vision_decoder", "neck"]:
             param['lr'] = learning_rate * 10
         else:
             param['lr'] = learning_rate
