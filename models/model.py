@@ -22,9 +22,9 @@ class DGSSModel(nn.Module):
 
         self.encoder_name = encoder_name
 
-        encoder_config = {"vit":"google/vit-base-patch16-224-in21k",
+        encoder_config = {"vit":"google/vit-base-patch32-224-in21k",
                           "tiny_clip":"wkcn/TinyCLIP-ViT-8M-16-Text-3M-YFCC15M",
-                          "clip":"openai/clip-vit-base-patch16"}[encoder_name]
+                          "clip":"openai/clip-vit-base-patch32"}[encoder_name]
         
         encoder_visual_dim = {"vit":768, "tiny_clip":256, "clip":768}[encoder_name]
         encoder_text_dim = {"vit":None, "tiny_clip":256, "clip":512}[encoder_name]    

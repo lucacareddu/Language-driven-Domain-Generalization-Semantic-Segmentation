@@ -4,5 +4,4 @@ torch
 scipy
 tqdm
 transformers
-kornia
 tensorboard

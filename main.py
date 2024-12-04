@@ -77,20 +77,11 @@ city_val_loader = DataLoader(val_city, batch_size=batch_size//2, num_workers=num
 text_prompts = None
 
 if use_text:
-    if True:
-        print("Class definitions employed.")
-        with open("class_definition/class_definition.json","r") as f:
-            class_definition = json.load(f)
-            class_definition = df_dict_search(dictionary=class_definition, class_names=CITY_VALID_CLASSES)
-            text_prompts = [f"{c}: " + class_definition[c] for c in CITY_VALID_CLASSES]
-            # print([len(x) for x in text_prompts])
-    else:
-        print("Class names employed.")
-        text_prompts = [f"a photo of a {c}." for c in CITY_VALID_CLASSES]
+    text_prompts = [f"a photo of a {c}." for c in CITY_VALID_CLASSES]
 
 #################################################################################################
 
-model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, freeze_text_encoder=True)
+model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts)
 model.to(device)
 
 model.print_trainable_params()
@@ -153,7 +144,8 @@ for i_iter in trange(iter_start, max_iterations):
 
     loss.backward()
 
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
+    gc = 0.1 if encoder_name == "tiny_clip" else 1.0
+    torch.nn.utils.clip_grad_norm_(model.parameters(), gc)
 
     optimizer.step()
 
