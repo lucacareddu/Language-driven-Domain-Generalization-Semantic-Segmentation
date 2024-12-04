@@ -9,7 +9,6 @@ from models import DGSSModel
 
 from datasets import GTA5Dataset, CityscapesDataset
 from datasets.transformscpu import *
-from datasets import transformsgpu
 
 from torchvision import transforms
 normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
@@ -133,8 +132,6 @@ for i_iter in trange(iter_start, max_iterations):
 
     if 1:
         images = normalize(images)
-        # images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
-        # images, labels = transformsgpu.train_aug(images=images, labels=binmasks, mean=IN_MEAN, std=IN_STD, normalization=True)
 
     model.train()
     adjust_learning_rate(lr=lr, lr_power=lr_power, i_iter=i_iter, warmup_iters=lr_warmup_iters, max_iterations=max_iterations, optimizer=optimizer)
@@ -181,7 +178,6 @@ for i_iter in trange(iter_start, max_iterations):
 
                 if 1:
                     images = normalize(images)
-                    # images = transformsgpu.normalize(images, mean=IN_MEAN, std=IN_STD)
 
                 loss, upsampled_logits = model(pixel_values=images, bin_masks=binmasks, classes=classes, return_logits=True)
 
