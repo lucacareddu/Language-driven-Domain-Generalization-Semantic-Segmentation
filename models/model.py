@@ -14,7 +14,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class DGSSModel(nn.Module):
-    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=False, no_neck=True, depthwise_neck=False, tqdm_neck=False, use_text_keys=False, use_text_queries=True, nqueries=100):
+    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=True, no_neck=True, depthwise_neck=False, tqdm_neck=False, use_text_keys=False, use_text_queries=True, nqueries=100):
         super().__init__()
 
         self.has_text_decoder = "clip" in encoder_name and text_prompts is not None
@@ -55,10 +55,10 @@ class DGSSModel(nn.Module):
             self.text_decoder = TextDecoder(visual_dim=encoder_visual_dim, text_dim=encoder_text_dim, return_keys=use_text_keys, return_queries=use_text_queries)
 
             if use_text_keys:
-                self.vision_decoder.model.pixel_level_module.decoder.encoder.crss_att = nn.ModuleList([nn.MultiheadAttention(embed_dim=vision_decoder_config.hidden_dim, 
+                self.vision_decoder.model.pixel_level_module.decoder.encoder.crss_attn = nn.ModuleList([nn.MultiheadAttention(embed_dim=vision_decoder_config.hidden_dim, 
                                                                                                                              num_heads=vision_decoder_config.num_attention_heads, 
                                                                                                                              batch_first=True) for _ in range(vision_decoder_config.encoder_layers)])
-                self.vision_decoder.model.pixel_level_module.decoder.encoder.crss_att.apply(self._init_weights)
+                self.vision_decoder.model.pixel_level_module.decoder.encoder.crss_attn.apply(self._init_weights)
 
                 self.vision_decoder.model.pixel_level_module.decoder.encoder.text_keys_pos = nn.Embedding(nclasses, vision_decoder_config.hidden_dim)
                 self.vision_decoder.model.pixel_level_module.decoder.encoder.text_keys_pos.apply(self._init_weights)       

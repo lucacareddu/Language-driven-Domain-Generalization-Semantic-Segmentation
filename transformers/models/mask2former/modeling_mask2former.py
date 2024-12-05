@@ -988,6 +988,7 @@ class Mask2FormerPixelDecoderEncoderLayer(nn.Module):
         )
 
         self.self_attn_layer_norm = nn.LayerNorm(self.embed_dim)
+        self.crss_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.dropout = config.dropout
         self.activation_fn = nn.functional.relu
         self.activation_dropout = config.dropout
@@ -1004,6 +1005,8 @@ class Mask2FormerPixelDecoderEncoderLayer(nn.Module):
         spatial_shapes=None,
         level_start_index=None,
         output_attentions: bool = False,
+        crss_attn = None,
+        text = None,
     ):
         """
         Args:
@@ -1041,6 +1044,15 @@ class Mask2FormerPixelDecoderEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
+
+        if crss_attn is not None:
+            residual = hidden_states
+
+            hidden_states, _ = crss_attn(hidden_states, text, text)
+
+            hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
+            hidden_states = residual + hidden_states
+            hidden_states = self.crss_attn_layer_norm(hidden_states)
 
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -1085,7 +1097,7 @@ class Mask2FormerPixelDecoderEncoderOnly(nn.Module):
             [Mask2FormerPixelDecoderEncoderLayer(config) for _ in range(config.encoder_layers)]
         )
 
-        self.crss_att = None
+        self.crss_attn = None
         self.text_keys = None
         self.text_keys_pos = None
 
@@ -1171,6 +1183,11 @@ class Mask2FormerPixelDecoderEncoderOnly(nn.Module):
         all_hidden_states = () if output_hidden_states else None
         all_attentions = () if output_attentions else None
 
+        text = None
+                
+        if self.crss_attn is not None:
+            text = self.text_keys + self.text_keys_pos.weight.expand(hidden_states.shape[0], -1, -1)
+
         for i, encoder_layer in enumerate(self.layers):
             if output_hidden_states:
                 all_hidden_states += (hidden_states.transpose(1, 0),)
@@ -1183,16 +1200,11 @@ class Mask2FormerPixelDecoderEncoderOnly(nn.Module):
                 spatial_shapes=spatial_shapes,
                 level_start_index=level_start_index,
                 output_attentions=output_attentions,
+                crss_attn=self.crss_attn[i] if self.crss_attn is not None else None,
+                text=text,
             )
 
             hidden_states = layer_outputs[0]
-
-            if self.crss_att is not None:
-                crss_att_layer = self.crss_att[i]
-                batch_size = hidden_states.shape[0]
-                visual = hidden_states + position_embeddings
-                text = self.text_keys + self.text_keys_pos.weight.expand(batch_size, -1, -1)
-                hidden_states, _ = crss_att_layer(visual, text, text)
 
             if output_attentions:
                 all_attentions = all_attentions + (layer_outputs[1],)
@@ -1402,7 +1414,7 @@ class Mask2FormerPixelLevelModule(nn.Module):
         self.decoder = Mask2FormerPixelDecoder(config, feature_channels=config.feature_channels)
 
     def forward(self, pixel_values: Tensor, output_hidden_states: bool = False) -> Mask2FormerPixelLevelModuleOutput:
-        backbone_features = pixel_values#self.encoder(pixel_values).feature_maps
+        backbone_features = pixel_values #self.encoder(pixel_values).feature_maps
         decoder_output = self.decoder(backbone_features, output_hidden_states=output_hidden_states)
 
         return Mask2FormerPixelLevelModuleOutput(
