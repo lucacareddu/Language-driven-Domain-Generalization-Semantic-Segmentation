@@ -1,7 +1,7 @@
 {
   "remote":0,
   
-  "debug_mode":0,
+  "debug_mode":1,
 
   "gta":{
     "local_root":"/home/luca/data/gta",
@@ -16,8 +16,8 @@
   },
 
   "preprocessing":{
-    "ignore_index":255,
-    "crop_size":[512,512]
+    "crop_size":[512,512],
+    "ignore_index":255
   },  
   
   "encoder":{
@@ -34,6 +34,12 @@
     "do_checkpoints":1,
     "iters_per_save":4000,
     "checkpoint_dir":"checkpoints"
+  },
+
+  "grad_clip":{
+    "enable":1,
+    "small_model":0.1,
+    "large_model":0.01
   },
   
   "optimizer":{

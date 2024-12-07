@@ -7,8 +7,6 @@ from models.neck import ViTNeck, tqdmNeck
 from transformers import Mask2FormerConfig, Mask2FormerForUniversalSegmentation, Mask2FormerImageProcessor
 from models.textdecoder import TextDecoder
 
-from models.reins import set_train, set_requires_grad
-
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -83,8 +81,9 @@ class DGSSModel(nn.Module):
         super().train(mode)
 
         if mode and "clip" in self.encoder_name and self.freeze_text_encoder:
-            set_requires_grad(self.encoder, ["vision_model"])
-            set_train(self.encoder, ["vision_model"])
+            self.encoder.text_model.train(False)
+            for param in self.encoder.text_model.parameters():
+                param.requires_grad = False
 
 
     def forward(self, pixel_values, bin_masks, classes, return_logits=False):

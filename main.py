@@ -41,8 +41,8 @@ gta_root = config["gta"]["remote_root"] if config["remote"] else config["gta"]["
 gta_inp_size = tuple(config["gta"]["input_size"])
 city_root = config["city"]["remote_root"] if config["remote"] else config["city"]["local_root"]
 city_inp_size = tuple(config["city"]["input_size"])
-ignore_index = config["preprocessing"]["ignore_index"]
 crop_size = tuple(config["preprocessing"]["crop_size"])
+ignore_index = config["preprocessing"]["ignore_index"]
 batch_size = config["training"]["batch_size"]
 num_workers = config["training"]["num_workers"]
 max_iterations = config["training"]["max_iterations"]
@@ -51,6 +51,8 @@ log_dir = config["training"]["log_dir"]
 do_checkpoints = config["training"]["do_checkpoints"]
 iters_per_save = config["training"]["iters_per_save"]
 checkpoint_dir = config["training"]["checkpoint_dir"]
+grad_clip = config["grad_clip"]["enable"]
+grad_clip_value = config["grad_clip"]["small_model"] if encoder_name == "tiny_clip" else config["grad_clip"]["large_model"]
 lr = config["optimizer"]["learning_rate"]
 lr_power = config["optimizer"]["lr_power"]
 lr_warmup_iters = config["optimizer"]["lr_warmup_iterations"]
@@ -80,7 +82,7 @@ if use_text:
 
 #################################################################################################
 
-model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, use_text_keys=True, use_text_queries=False)
+model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts)
 model.to(device)
 
 model.print_trainable_params()
@@ -141,8 +143,8 @@ for i_iter in trange(iter_start, max_iterations):
 
     loss.backward()
 
-    gc = 0.1 if encoder_name == "tiny_clip" else 1.0
-    torch.nn.utils.clip_grad_norm_(model.parameters(), gc)
+    if grad_clip:
+        torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_value)
 
     optimizer.step()
 
