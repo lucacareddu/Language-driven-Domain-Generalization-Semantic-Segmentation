@@ -1,7 +1,7 @@
 {
-  "remote":0,
+  "remote":1,
   
-  "debug_mode":1,
+  "debug_mode":0,
 
   "gta":{
     "local_root":"/home/luca/data/gta",
@@ -21,12 +21,12 @@
   },  
   
   "encoder":{
-    "name":"tiny_clip",
-    "use_text":1
+    "name":"clip",
+    "use_text":0
   },
 
   "training":{
-    "batch_size":2,
+    "batch_size":4,
     "num_workers":4,
     "max_iterations":40000,
     "iters_per_val":4000,

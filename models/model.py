@@ -12,7 +12,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class DGSSModel(nn.Module):
-    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_text_encoder=True, no_neck=True, depthwise_neck=False, tqdm_neck=False, use_text_keys=False, use_text_queries=True, nqueries=100):
+    def __init__(self, encoder_name, ignore_value, text_prompts=None, nclasses=19, freeze_vision_encoder=False, freeze_text_encoder=True, no_neck=True, depthwise_neck=False, tqdm_neck=False, use_text_keys=False, use_text_queries=True, nqueries=100):
         super().__init__()
 
         self.has_text_decoder = "clip" in encoder_name and text_prompts is not None
@@ -20,14 +20,16 @@ class DGSSModel(nn.Module):
 
         self.encoder_name = encoder_name
 
-        encoder_config = {"vit":"google/vit-base-patch32-224-in21k",
+        encoder_config = {"vit":"google/vit-base-patch16-224-in21k",
                           "tiny_clip":"wkcn/TinyCLIP-ViT-8M-16-Text-3M-YFCC15M",
-                          "clip":"openai/clip-vit-base-patch32"}[encoder_name]
+                          "clip":"openai/clip-vit-base-patch16"}[encoder_name]
         
         encoder_visual_dim = {"vit":768, "tiny_clip":256, "clip":768}[encoder_name]
         encoder_text_dim = {"vit":None, "tiny_clip":256, "clip":512}[encoder_name]    
 
         self.encoder = {"vit":ViTModel, "tiny_clip":CLIPModel, "clip":CLIPModel}[encoder_name].from_pretrained(encoder_config)
+        # self.encoder.gradient_checkpointing_enable({"use_reentrant": False})
+        self.freeze_vision_encoder = freeze_vision_encoder
 
         self.out_indices = {"vit":[3, 5, 7, 11], "tiny_clip":[4, 7, 10], "clip":[3, 5, 7, 11]}[encoder_name][-3:]
 
@@ -79,6 +81,11 @@ class DGSSModel(nn.Module):
     
     def train(self, mode: bool = True):
         super().train(mode)
+
+        if mode and self.freeze_vision_encoder:
+            self.encoder.train(False)
+            for param in self.encoder.parameters():
+                param.requires_grad = False
 
         if mode and "clip" in self.encoder_name and self.freeze_text_encoder:
             self.encoder.text_model.train(False)

@@ -24,7 +24,7 @@ import json
 
 #################################################################################################
 
-resume_path = None
+resume_path = "checkpoints/09-12_18-37-17/checkpoint-iter31999.pth"
 
 if resume_path is not None:
     config = json.load(open(os.path.join('/'.join(resume_path.split("/")[:-1]), "config.json")))
@@ -62,7 +62,7 @@ lr_warmup_iters = config["optimizer"]["lr_warmup_iterations"]
 SEED = 0
 
 if True:
-    fix_seed(SEED=SEED, deterministic=True)
+    fix_seed(SEED=SEED)
 
 #################################################################################################
 
@@ -82,7 +82,7 @@ if use_text:
 
 #################################################################################################
 
-model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts)
+model = DGSSModel(encoder_name=encoder_name, ignore_value=ignore_index, text_prompts=text_prompts, freeze_vision_encoder=True)
 model.to(device)
 
 model.print_trainable_params()
@@ -125,34 +125,39 @@ if resume_path is not None:
 train_iter = iter(gta_train_loader)
 
 
-for i_iter in trange(iter_start, max_iterations):
-    batch, train_iter = get_batch(train_iter, gta_train_loader)
-
-    images = batch["image"].to(device)
-    classes = [x.to(device) for x in batch["classes"]]
-    binmasks = [x.to(device) for x in batch["bin_masks"]]
-
-    if 1:
-        images = normalize(images)
-
+for i_iter in trange(iter_start, max_iterations):        
     model.train()
     adjust_learning_rate(lr=lr, lr_power=lr_power, i_iter=i_iter, warmup_iters=lr_warmup_iters, max_iterations=max_iterations, optimizer=optimizer)
-    optimizer.zero_grad()
 
-    loss = model(pixel_values=images, bin_masks=binmasks, classes=classes)
+    true_loss = 0
+    for _ in range(1):
+        batch, train_iter = get_batch(train_iter, gta_train_loader)
 
-    loss.backward()
+        images = batch["image"].to(device)
+        classes = [x.to(device) for x in batch["classes"]]
+        binmasks = [x.to(device) for x in batch["bin_masks"]]
 
+        if 1:
+            images = normalize(images)
+
+        loss = model(pixel_values=images, bin_masks=binmasks, classes=classes)
+
+        loss = loss / 1
+        loss.backward()
+
+        true_loss += loss.detach().item()
+    
     if grad_clip:
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_value)
 
     optimizer.step()
+    optimizer.zero_grad()
 
     if not debug:
         try:
             tb_writer.add_scalar("lr", optimizer.param_groups[0]["lr"], i_iter)
             tb_writer.add_scalar("lr_dec", optimizer.param_groups[-1]["lr"], i_iter)
-            tb_writer.add_scalar("Loss", loss, i_iter)
+            tb_writer.add_scalar("Loss", true_loss, i_iter)
         except:
             pass
 
@@ -164,7 +169,7 @@ for i_iter in trange(iter_start, max_iterations):
                 pass
 
     if (i_iter+1) % iters_per_val == 0:
-        print("Loss: ", loss.item())
+        print("Loss: ", true_loss)
         
         model.eval()
         with torch.no_grad():

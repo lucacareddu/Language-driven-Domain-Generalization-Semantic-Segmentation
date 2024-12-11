@@ -2,7 +2,7 @@ import random
 import numpy
 import torch
 
-def fix_seed(SEED, deterministic=False):
+def fix_seed(SEED, deterministic=True):
     random.seed(SEED)
     numpy.random.seed(SEED)
     torch.manual_seed(SEED)
