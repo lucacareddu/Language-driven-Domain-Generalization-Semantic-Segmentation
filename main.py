@@ -24,7 +24,7 @@ import json
 
 #################################################################################################
 
-resume_path = "checkpoints/09-12_18-37-17/checkpoint-iter31999.pth"
+resume_path = None
 
 if resume_path is not None:
     config = json.load(open(os.path.join('/'.join(resume_path.split("/")[:-1]), "config.json")))
